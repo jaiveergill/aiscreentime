@@ -1,0 +1,63 @@
+{
+  "name": "@jaiveergill/leverage",
+  "version": "0.1.0",
+  "description": "Reconstructs the engineering work you completed through Claude Code and Codex, and estimates how long it would have taken without AI. Fully local.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "bin": {
+    "leverage": "./bin/leverage.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "public"
+  ],
+  "scripts": {
+    "build": "npm run build:server && npm run build:ui",
+    "build:server": "tsc -p tsconfig.json",
+    "build:ui": "node scripts/build-ui.mjs",
+    "dev": "node scripts/build-ui.mjs --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "node scripts/lint.mjs",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"scripts/*.mjs\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"scripts/*.mjs\"",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "node --test --experimental-strip-types \"test/unit/**/*.test.ts\"",
+    "test:integration": "node --test --experimental-strip-types \"test/integration/**/*.test.ts\"",
+    "test:e2e": "node --test --experimental-strip-types \"test/e2e/**/*.test.ts\"",
+    "test:all": "node --test --experimental-strip-types \"test/**/*.test.ts\"",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test:all",
+    "prepublishOnly": "npm run build && npm run check"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "esbuild": "^0.24.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2"
+  },
+  "keywords": [
+    "claude-code",
+    "codex",
+    "ai-agents",
+    "productivity",
+    "developer-tools",
+    "local-first",
+    "analytics",
+    "cli"
+  ],
+  "author": "Jaiveer Gill",
+  "homepage": "https://github.com/jaiveergill/leverage#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jaiveergill/leverage.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jaiveergill/leverage/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
