@@ -1,6 +1,6 @@
 {
   "name": "aiscreentime",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Reconstructs the engineering work you completed through Claude Code and Codex, and estimates how long it would have taken without AI. Fully local.",
   "license": "MIT",
   "type": "module",

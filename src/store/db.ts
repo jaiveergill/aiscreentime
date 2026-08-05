@@ -26,8 +26,14 @@ export function screentimeHome(): string {
     if (fs.existsSync(legacy)) {
       try {
         fs.renameSync(legacy, home);
+        // The `-wal` and `-shm` sidecars must travel with the database. A
+        // renamed `leverage.db` leaves them orphaned, and an orphaned WAL is
+        // not inert: it holds real pages — transcript excerpts and absolute
+        // paths — in a file SQLite will never open again to clean up.
         for (const [from, to] of [
           ['leverage.db', 'screentime.db'],
+          ['leverage.db-wal', 'screentime.db-wal'],
+          ['leverage.db-shm', 'screentime.db-shm'],
           ['leverage.log', 'screentime.log'],
         ]) {
           const src = path.join(home, from as string);
@@ -42,6 +48,34 @@ export function screentimeHome(): string {
     }
   }
   return home;
+}
+
+/**
+ * Create the directory if needed, and make it owner-only either way.
+ *
+ * The `mode` argument to `mkdirSync` applies only when the directory is
+ * created. A directory left behind by an earlier version — or by any run
+ * before this rule existed — keeps its original permissions forever, so the
+ * mode has to be reasserted on every open rather than assumed. The same trap
+ * applies to files: `createWriteStream`'s mode is ignored when appending to an
+ * existing one.
+ */
+export function secureDir(dir: string): void {
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  try {
+    fs.chmodSync(dir, 0o700);
+  } catch {
+    /* best effort: a filesystem without permissions, or not our directory */
+  }
+}
+
+/** Restrict an existing file to owner-only. Silent when it cannot. */
+export function secureFile(file: string): void {
+  try {
+    if (fs.existsSync(file)) fs.chmodSync(file, 0o600);
+  } catch {
+    /* best effort */
+  }
 }
 
 export interface OpenOptions {
@@ -90,16 +124,15 @@ export class Db {
     // Owner-only: this database holds transcript excerpts, absolute repo paths
     // and task titles. On a shared machine the default umask would leave it
     // world-readable.
-    fs.mkdirSync(this.dir, { recursive: true, mode: 0o700 });
+    secureDir(this.dir);
     this.file = path.join(this.dir, opts.filename ?? 'screentime.db');
     adoptLegacyDb(this.dir, this.file, opts.filename);
     this.handle = new DatabaseSync(this.file, { readOnly: opts.readOnly ?? false });
     if (!opts.readOnly) {
-      try {
-        fs.chmodSync(this.file, 0o600);
-      } catch {
-        /* best effort: a pre-existing file on a filesystem without chmod */
-      }
+      // The sidecars matter as much as the database: a `-wal` holds the same
+      // pages, so leaving it readable leaks exactly what locking the database
+      // was meant to prevent.
+      for (const suffix of ['', '-wal', '-shm']) secureFile(`${this.file}${suffix}`);
       // WAL keeps the dashboard readable while ingestion writes.
       this.handle.exec('PRAGMA journal_mode = WAL');
       this.handle.exec('PRAGMA synchronous = NORMAL');

@@ -81,3 +81,84 @@ describe('adopting a database from the previous name', () => {
     }
   });
 });
+
+/**
+ * `mkdirSync`'s `mode` applies only at creation, and `createWriteStream`'s is
+ * ignored when appending to an existing file. A directory left behind by an
+ * earlier version therefore keeps its original permissions forever unless they
+ * are reasserted — which is how 40MB of transcript data ended up
+ * world-readable on a real machine.
+ */
+describe('permissions are reasserted, not assumed', () => {
+  test('an already world-readable directory is locked down on open', () => {
+    const dir = tmpDir('screentime-perm-');
+    try {
+      fs.chmodSync(dir, 0o755);
+      assert.equal(fs.statSync(dir).mode & 0o777, 0o755, 'starts world-readable');
+
+      const db = new Db({ dir });
+      try {
+        assert.equal(
+          fs.statSync(dir).mode & 0o777,
+          0o700,
+          'opening the database must restrict a pre-existing directory',
+        );
+        assert.equal(
+          fs.statSync(path.join(dir, 'screentime.db')).mode & 0o777,
+          0o600,
+          'and the database file itself',
+        );
+      } finally {
+        db.close();
+      }
+    } finally {
+      cleanup(dir);
+    }
+  });
+
+  test('WAL sidecars are restricted too, not just the database', () => {
+    const dir = tmpDir('screentime-perm-');
+    try {
+      const db = new Db({ dir });
+      try {
+        // Force a WAL to exist by writing something.
+        db.setConfig('marker', { a: 1 });
+        for (const suffix of ['-wal', '-shm']) {
+          const f = path.join(dir, `screentime.db${suffix}`);
+          if (!fs.existsSync(f)) continue;
+          assert.equal(
+            fs.statSync(f).mode & 0o777,
+            0o600,
+            `${suffix} holds the same pages as the database and must match its permissions`,
+          );
+        }
+      } finally {
+        db.close();
+      }
+    } finally {
+      cleanup(dir);
+    }
+  });
+
+  test('a legacy database brings its sidecars across', () => {
+    const dir = tmpDir('screentime-perm-');
+    try {
+      const seeded = new Db({ dir, filename: 'leverage.db' });
+      seeded.setConfig('marker', { kept: true });
+      seeded.close();
+      // Simulate the sidecars an unclean shutdown leaves behind.
+      fs.writeFileSync(path.join(dir, 'leverage.db-wal'), 'stale pages');
+      fs.writeFileSync(path.join(dir, 'leverage.db-shm'), 'stale index');
+
+      const db = new Db({ dir });
+      try {
+        assert.ok(!fs.existsSync(path.join(dir, 'leverage.db-wal')), 'no orphaned -wal is left');
+        assert.ok(!fs.existsSync(path.join(dir, 'leverage.db-shm')), 'no orphaned -shm is left');
+      } finally {
+        db.close();
+      }
+    } finally {
+      cleanup(dir);
+    }
+  });
+});

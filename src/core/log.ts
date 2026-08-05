@@ -14,11 +14,23 @@ export function configureLogging(opts: { level?: LogLevel; dir?: string; quiet?:
   if (opts.level) minLevel = opts.level;
   if (opts.quiet !== undefined) quiet = opts.quiet;
   if (opts.dir) {
-    // Owner-only: log lines carry file paths and command text.
+    // Owner-only: log lines carry file paths and command text. The `mode`
+    // below applies only when the file is created — appending to one left by
+    // an earlier version keeps its old permissions — so it is reasserted.
     fs.mkdirSync(opts.dir, { recursive: true, mode: 0o700 });
+    try {
+      fs.chmodSync(opts.dir, 0o700);
+    } catch {
+      /* best effort */
+    }
     logFile = path.join(opts.dir, 'screentime.log');
     stream?.end();
     stream = fs.createWriteStream(logFile, { flags: 'a', mode: 0o600 });
+    try {
+      fs.chmodSync(logFile, 0o600);
+    } catch {
+      /* best effort */
+    }
   }
 }
 
