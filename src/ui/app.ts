@@ -14,6 +14,7 @@ import {
   todayKey,
   type Epistemics,
 } from './dom.ts';
+import { chooseDay } from './day.ts';
 import { renderStrip, type StripData } from './strip.ts';
 import { renderLanes } from './lanes.ts';
 import { ICONS, sidebar } from './chrome.ts';
@@ -220,11 +221,14 @@ function readHash(): void {
   }
   if (rest[0] && /^\d{4}-\d{2}-\d{2}$/.test(rest[0])) {
     state.day = rest[0];
-    explicitDay = true;
+    pinnedDay = true;
     state.openTaskId = rest[1] ?? null;
   } else if (rest[0]) {
     state.openTaskId = rest[0];
   } else {
+    // No date in the URL means the user is asking for "whatever is current"
+    // again, so resume following today rather than staying on an old pin.
+    pinnedDay = false;
     state.openTaskId = null;
   }
 }
@@ -242,18 +246,36 @@ window.addEventListener('hashchange', () => {
 /* Data                                                                */
 /* ------------------------------------------------------------------ */
 
-async function loadStatus(): Promise<void> {
-  state.status = await api<StatusPayload>('/api/status');
-  // Land on a day that actually has data. Opening on an empty "today" makes
-  // the product look broken when the user simply has not worked yet.
-  const days = state.status.days;
-  if (days.length > 0 && !days.includes(state.day) && !explicitDay) {
-    state.day = days[0] as string;
-  }
+/** True when the user picked a specific day, rather than following today. */
+let pinnedDay = false;
+
+/**
+ * Choose which day to show when the user has not pinned one.
+ *
+ * Prefer today as soon as it has any activity, and fall back to the most
+ * recent day that does. Opening on an empty "today" makes the product look
+ * broken when the user simply has not started yet — but the fallback has to be
+ * re-evaluated on every status poll, not just at load. Otherwise a session
+ * opened before the first task of the day lands on yesterday and stays there
+ * for the life of the page, silently ignoring everything ingested since.
+ *
+ * Reading `today` from the status payload rather than the clock also means a
+ * tab left open overnight rolls over on its own.
+ *
+ * @returns true when the selected day changed and its data needs reloading.
+ */
+function syncDay(): boolean {
+  if (pinnedDay || !state.status) return false;
+  const target = chooseDay(state.status.days, state.status.today);
+  if (target === state.day) return false;
+  state.day = target;
+  return true;
 }
 
-/** True when the day came from the URL rather than defaulting to today. */
-let explicitDay = false;
+async function loadStatus(): Promise<void> {
+  state.status = await api<StatusPayload>('/api/status');
+  syncDay();
+}
 
 async function loadDay(): Promise<void> {
   const [day, timeline, trendRes] = await Promise.all([
@@ -1086,7 +1108,11 @@ setInterval(async () => {
     const next = await api<StatusPayload>('/api/status');
     const wasIngesting = state.status.ingesting;
     state.status = next;
-    if (wasIngesting && !next.ingesting) await refresh();
+    // A background scan that picks up the first task of a new day, or a tab
+    // left open past midnight, both change which day we should be showing.
+    const dayChanged = syncDay();
+    if (dayChanged || (wasIngesting && !next.ingesting)) await refresh();
+    else render();
   } catch {
     /* server not reachable; keep the last known state */
   }

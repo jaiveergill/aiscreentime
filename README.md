@@ -45,6 +45,7 @@ leverage
 
 | Command | What it does |
 | --- | --- |
+| `leverage run` | Open the dashboard now, scan in the background |
 | `leverage` / `leverage start` | Scan local agent data, then open the dashboard |
 | `leverage serve` | Dashboard only, no scan |
 | `leverage ingest [--days N]` | Scan and update the index |

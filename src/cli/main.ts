@@ -24,6 +24,7 @@ USAGE
   leverage [command] [options]
 
 COMMANDS
+  run                Open the dashboard now, scan in the background
   start              Ingest, then open the dashboard (default)
   serve              Serve the dashboard without ingesting first
   ingest             Scan Claude Code and Codex data and update the index
@@ -101,9 +102,18 @@ export async function main(argv: string[]): Promise<number> {
 
   try {
     switch (args.command) {
+      case 'run':
       case 'start':
       case 'serve': {
-        if (args.command === 'start' && !settings.paused) {
+        // Three ways to come up, differing only in when the scan happens:
+        //   serve  never scans — the dashboard reads what is already stored
+        //   start  scans first, so the page is complete the moment it opens
+        //   run    opens first and scans behind it, so there is no wait
+        // `run` is the one you want on a machine with a lot of history, where
+        // a full scan is measured in tens of seconds.
+        const scanFirst = args.command === 'start' && !settings.paused;
+        const scanBehind = args.command === 'run' && !settings.paused;
+        if (scanFirst) {
           process.stdout.write(c.dim('Scanning local agent data…\n'));
           await runIngestWithProgress(ctx, args);
         }
@@ -131,6 +141,18 @@ export async function main(argv: string[]): Promise<number> {
           );
         }
         if (!args.flags['no-open']) openBrowser(url);
+        if (scanBehind) {
+          // Deliberately not awaited: the page is already open and reports
+          // progress itself, and the dashboard switches to today on its own
+          // once the scan turns up the first task of the day.
+          process.stdout.write(`  ${c.dim('scanning in the background…')}\n\n`);
+          void runIngest(ctx, settings, true).catch((err: unknown) => {
+            log.warn('background scan failed', { err: String(err) });
+            process.stdout.write(
+              `  ${c.yellow('Background scan failed.')} ${c.dim('Run `leverage ingest` to see why.')}\n`,
+            );
+          });
+        }
         await new Promise<void>((resolve) => {
           const shutdown = (): void => {
             stopRefresh();
@@ -348,7 +370,8 @@ export async function main(argv: string[]): Promise<number> {
     process.stderr.write(`\n  ${c.red('Error:')} ${String(err)}\n\n`);
     return 1;
   } finally {
-    if (args.command !== 'start' && args.command !== 'serve') ctx.db.close();
+    // The long-running commands own the connection for the life of the server.
+    if (!['start', 'serve', 'run'].includes(args.command)) ctx.db.close();
   }
 }
 
