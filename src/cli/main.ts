@@ -427,7 +427,7 @@ function printDay(ctx: ReturnType<typeof createContext>, day: string, asJson: bo
   process.stdout.write(`  ${c.dim('produced through agents')}\n\n`);
   process.stdout.write(
     `  ${c.bold(formatDuration(m.steeringMs))} steering  ${c.dim('·')}  ` +
-      `${c.green(`${lev.toFixed(lev < 10 ? 1 : 0)}× output leverage`)}  ${c.dim('·')}  ` +
+      `${c.green(`${lev.toFixed(lev < 10 ? 1 : 0)}× more work`)}  ${c.dim('·')}  ` +
       `${m.peakConcurrency} peak concurrent agents\n\n`,
   );
   const done =

@@ -6,7 +6,7 @@ how long each one would have taken a competent engineer working without AI.
 
 > **27 conventional engineering hours**
 > produced through agents today
-> **53m steering · 30× output leverage**
+> **53m steering · 30× more work**
 
 It counts what survived, not what was generated. Everything runs locally.
 

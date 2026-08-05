@@ -469,7 +469,7 @@ function heroCard(m: DayMetrics, day: DayPayload): HTMLElement {
       h('b', {}, fmtDuration(m.steeringMs)),
       ' of yours',
     ),
-    h('div', { class: 'hero-lev' }, ICONS.pulse(), `${fmtMultiplier(m.outputLeverage)} leverage`),
+    h('div', { class: 'hero-lev' }, ICONS.pulse(), `${fmtMultiplier(m.outputLeverage)} more work`),
     h(
       'div',
       { class: 'hero-range' },
@@ -552,7 +552,7 @@ function railSummary(m: DayMetrics): HTMLElement {
     sub('reviewing', fmtHoursShort(reviewMs)),
     rule(),
     row('Conventional work', `${fmtHours(m.verifiedHours.median)} hrs`, 'green'),
-    row('Leverage', fmtMultiplier(m.outputLeverage), 'amber'),
+    row('More work', fmtMultiplier(m.outputLeverage), 'amber'),
     row('Verified', `${Math.round(m.verificationRate * 100)}%`),
   );
 }

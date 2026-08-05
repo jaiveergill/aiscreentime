@@ -220,7 +220,7 @@ function renderHeadline(
     <line x1="72" y1="428" x2="${w - 72}" y2="428" stroke="${p.grid}" stroke-width="1"/>
 
     ${stat(p, 72, 498, formatDuration(m.steeringMs), 'your time')}
-    ${stat(p, 392, 498, `${leverage.toFixed(leverage < 10 ? 1 : 0)}×`, 'leverage', p.accent)}
+    ${stat(p, 392, 498, `${leverage.toFixed(leverage < 10 ? 1 : 0)}×`, 'more work', p.accent)}
     ${stat(p, 712, 498, String(m.peakConcurrency), 'peak agents')}
 
     ${footnote(p, 72, h - 34)}
@@ -323,7 +323,7 @@ function renderTimeline(
     ${wordmark(p, 72, 74)}
     <text x="${w - 72}" y="74" text-anchor="end" font-family="${FONT_STACK}" font-size="18" fill="${p.muted}">${esc(formatDayLabel(data.day))}</text>
     <text x="72" y="158" font-family="${MONO_STACK}" font-size="76" font-weight="600" letter-spacing="-0.045em" fill="${p.fg}">${roundHuman(m.verifiedHours.median)}<tspan font-family="${FONT_STACK}" letter-spacing="0" font-size="32" font-weight="500" fill="${p.muted}" dx="14">conventional hours</tspan></text>
-    <text x="72" y="196" font-family="${FONT_STACK}" font-size="21" fill="${p.muted}">${esc(formatDuration(m.steeringMs))} of your time · ${m.outputLeverage.toFixed(m.outputLeverage < 10 ? 1 : 0)}× leverage</text>
+    <text x="72" y="196" font-family="${FONT_STACK}" font-size="21" fill="${p.muted}">${esc(formatDuration(m.steeringMs))} of your time · ${m.outputLeverage.toFixed(m.outputLeverage < 10 ? 1 : 0)}× more work</text>
 
     ${hoursMarks}
     <text x="72" y="${humanY - 14}" font-family="${FONT_STACK}" font-size="13" font-weight="600" letter-spacing="0.12em" fill="${p.fg}">YOU</text>
@@ -419,7 +419,7 @@ function renderWeekly(
     `
     ${wordmark(p, 72, 74)}
     <text x="72" y="166" font-family="${MONO_STACK}" font-size="82" font-weight="600" letter-spacing="-0.045em" fill="${p.fg}">${roundHuman(total)}<tspan font-family="${FONT_STACK}" letter-spacing="0" font-size="34" font-weight="500" fill="${p.muted}" dx="14">hours this week</tspan></text>
-    <text x="72" y="208" font-family="${FONT_STACK}" font-size="22" fill="${p.muted}">${esc(formatDuration(steer * HOUR))} of your time · ${lev.toFixed(lev < 10 ? 1 : 0)}× leverage</text>
+    <text x="72" y="208" font-family="${FONT_STACK}" font-size="22" fill="${p.muted}">${esc(formatDuration(steer * HOUR))} of your time · ${lev.toFixed(lev < 10 ? 1 : 0)}× more work</text>
     <line x1="72" y1="${baseY}" x2="${w - 72}" y2="${baseY}" stroke="${p.grid}" stroke-width="1"/>
     ${bars}
     ${footnote(p, 72, h - 34)}
@@ -465,7 +465,7 @@ export function describeExposure(opts: CardOptions, data: CardData): string[] {
   const out: string[] = [
     'Estimated conventional hours',
     'Your hands-on time',
-    'Leverage ratio',
+    'Work multiple',
     'Peak agent count',
     'The date',
   ];
