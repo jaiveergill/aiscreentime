@@ -1,6 +1,6 @@
 import type { TaskCategory } from '../core/types.ts';
 import type { Db } from '../store/db.ts';
-import type { Settings } from '../core/config.ts';
+import { isLoopbackUrl, type Settings } from '../core/config.ts';
 import { hashFull } from '../core/util.ts';
 import { log } from '../core/log.ts';
 import { redact, stripPaths } from '../privacy/redact.ts';
@@ -318,6 +318,16 @@ export function createSemanticProvider(db: Db, settings: Settings): SemanticProv
         settings.customRedactTerms,
       );
     case 'local': {
+      // `isLocal: true` is a promise the UI repeats to the user, so it is
+      // checked here rather than assumed. Validating only when the setting is
+      // written would trust any value that reached the database by another
+      // route — an older build, a restored backup, a hand-edited row.
+      if (!isLoopbackUrl(settings.semanticLocalBaseUrl)) {
+        log.warn('local semantic provider disabled: endpoint is not loopback', {
+          endpoint: settings.semanticLocalBaseUrl,
+        });
+        return undefined;
+      }
       // A local endpoint speaks the OpenAI wire format, but it must never receive
       // OpenAI's credentials. `apiKeyEnv` is dropped so no key is ever read, and
       // `headers` is replaced so no `authorization` header can be constructed even

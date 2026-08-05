@@ -740,7 +740,6 @@ function cardOptionsFromQuery(url: URL): CardOptions {
     theme: url.searchParams.get('theme') === 'light' ? 'light' : 'dark',
     // Aliases are the default; revealing is an explicit opt-in per export.
     revealProjects: url.searchParams.get('revealProjects') === '1',
-    revealTaskTitles: url.searchParams.get('revealTaskTitles') === '1',
     ...(width !== undefined ? { width } : {}),
     ...(height !== undefined ? { height } : {}),
   };

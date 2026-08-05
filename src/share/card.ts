@@ -24,8 +24,6 @@ export interface CardOptions {
   readonly theme: 'dark' | 'light';
   /** Reveal real project names. Off by default. */
   readonly revealProjects: boolean;
-  /** Reveal task titles in the projects variant. Off by default. */
-  readonly revealTaskTitles: boolean;
   readonly width?: number;
   readonly height?: number;
 }
@@ -34,7 +32,6 @@ export const DEFAULT_CARD_OPTIONS: CardOptions = {
   variant: 'headline',
   theme: 'dark',
   revealProjects: false,
-  revealTaskTitles: false,
 };
 
 export interface CardData {

@@ -59,9 +59,18 @@ export const DEFAULT_SETTINGS: Settings = {
   autoRefreshSeconds: 60,
 };
 
+/**
+ * Read settings, re-validating what was stored.
+ *
+ * Validating only on write is not enough: a row written by an older build, a
+ * hand-edited database, or any future path that does not go through
+ * `saveSettings` would otherwise be trusted verbatim. Sanitising on read means
+ * every consumer of `Settings` gets a value that satisfies the declared type
+ * and range, whatever is actually on disk.
+ */
 export function loadSettings(db: Db): Settings {
   const stored = db.getConfig<Partial<Settings>>('settings', {});
-  return { ...DEFAULT_SETTINGS, ...stored };
+  return { ...DEFAULT_SETTINGS, ...sanitizeSettingsPatch(stored) };
 }
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);

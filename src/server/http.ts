@@ -45,14 +45,20 @@ export function createServer(ctx: ApiContext, opts: ServerOptions): http.Server 
    * those are ordinary GETs with a legitimate Origin. Pinning the `Host` header
    * to known names closes that path: an attacker's domain never matches.
    */
-  const allowedHosts = new Set([host, 'localhost', '127.0.0.1', '::1', '[::1]']);
+  const allowedHosts = new Set(
+    [host, 'localhost', '127.0.0.1', '::1', '[::1]'].map((h) => h.toLowerCase()),
+  );
 
   async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     const rawHost = req.headers.host ?? `${host}:${opts.port}`;
     // Strip the port: `host` may be bare, bracketed IPv6, or either with `:port`.
-    const hostname = rawHost.startsWith('[')
-      ? rawHost.slice(0, rawHost.indexOf(']') + 1)
-      : (rawHost.split(':')[0] ?? '');
+    // Hostnames are case-insensitive, so compare lowercased — otherwise a
+    // legitimate `Host: LOCALHOST` would be turned away.
+    const hostname = (
+      rawHost.startsWith('[')
+        ? rawHost.slice(0, rawHost.indexOf(']') + 1)
+        : (rawHost.split(':')[0] ?? '')
+    ).toLowerCase();
     if (!allowedHosts.has(hostname)) {
       res.writeHead(403, {
         'x-content-type-options': 'nosniff',
@@ -67,9 +73,19 @@ export function createServer(ctx: ApiContext, opts: ServerOptions): http.Server 
     const method = req.method ?? 'GET';
 
     // Never cache API responses; the numbers change under the user's feet.
+    //
+    // The CSP matters most for `/api/share/*.svg`: it is served as
+    // image/svg+xml, and an SVG that is *navigated to* renders as an active
+    // document in this server's own origin. Any escaping gap in the card
+    // renderer would therefore become same-origin script execution with read
+    // access to the rest of the API. `default-src 'none'` makes that
+    // unreachable rather than relying on the renderer being perfect. The card
+    // draws with presentation attributes and a gradient — no <style>, no
+    // <script> — so nothing legitimate is blocked.
     const baseHeaders: Record<string, string> = {
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'no-referrer',
+      'content-security-policy': "default-src 'none'; sandbox",
     };
 
     if (url.pathname.startsWith('/api/')) {

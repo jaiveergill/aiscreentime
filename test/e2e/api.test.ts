@@ -363,10 +363,30 @@ describe('HTTP transport', () => {
   });
 
   test('still accepts the loopback names it is reached by', async () => {
-    for (const host of [`127.0.0.1:${port}`, `localhost:${port}`, '127.0.0.1']) {
+    for (const host of [
+      `127.0.0.1:${port}`,
+      `localhost:${port}`,
+      '127.0.0.1',
+      // Hostnames are case-insensitive; this must not be turned away.
+      `LOCALHOST:${port}`,
+    ]) {
       const res = await rawGet('/api/status', host);
       assert.equal(res.status, 200, `${host} must be allowed`);
     }
+  });
+
+  test('the share card is served with a policy that cannot execute script', async () => {
+    // The card is image/svg+xml. Navigating to it renders an active document in
+    // this server's own origin, so an escaping gap in the renderer would become
+    // same-origin script with read access to /api/export. The policy makes that
+    // unreachable regardless.
+    const res = await fetch(`${base}/api/share/${DAY}.svg`);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-type') ?? '', /image\/svg\+xml/);
+    const csp = res.headers.get('content-security-policy') ?? '';
+    assert.match(csp, /default-src 'none'/, 'active content is denied by default');
+    const body = await res.text();
+    assert.ok(body.startsWith('<svg'), 'and it is still a valid card');
   });
 
   test('a malformed JSON body does not crash the server', async () => {

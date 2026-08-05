@@ -20,8 +20,6 @@ export interface GitCommit {
   readonly authorTs: number;
   /** Hash of the subject line. We never store commit messages verbatim. */
   readonly subjectHash: string;
-  /** First 80 chars of the subject, redaction-eligible, for the task view. */
-  readonly subjectPreview: string;
   readonly files: number;
   readonly insertions: number;
   readonly deletions: number;
@@ -134,7 +132,6 @@ export function commitsInRange(root: string, sinceMs: number, untilMs: number): 
       ts: Number(ct ?? 0) * 1000,
       authorTs: Number(at ?? ct ?? 0) * 1000,
       subjectHash: hashId('subject', subj),
-      subjectPreview: subj.slice(0, 80),
       files: paths.length,
       insertions,
       deletions,

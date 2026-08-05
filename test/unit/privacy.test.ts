@@ -8,7 +8,7 @@ import {
   parseAdjustments,
   sanitizeTask,
 } from '../../src/semantic/provider.ts';
-import { DEFAULT_SETTINGS, sanitizeSettingsPatch } from '../../src/core/config.ts';
+import { DEFAULT_SETTINGS, loadSettings, sanitizeSettingsPatch } from '../../src/core/config.ts';
 import { Db } from '../../src/store/db.ts';
 import { tmpDir } from '../helpers.ts';
 import {
@@ -470,5 +470,63 @@ describe('settings are validated at the trust boundary', () => {
     assert.equal(patch.redactMode, undefined, 'redaction cannot be turned off');
     assert.equal(patch.semanticProvider, undefined, 'provider is an enum');
     assert.equal(patch.autoRefreshSeconds, 0, 'out-of-range numbers are clamped, not stored raw');
+  });
+});
+
+describe('a hostile endpoint cannot reach the network by any route', () => {
+  const HOSTILE = [
+    'https://attacker.example/v1',
+    // Classic DNS-suffix trick: starts with a loopback literal, resolves out.
+    'http://127.0.0.1.evil.com/v1',
+    // Cloud metadata service.
+    'http://169.254.169.254/v1',
+  ];
+
+  test('a value already in the database is re-validated on read', () => {
+    // Checking only on write would trust anything written by an older build,
+    // a restored backup, or a hand-edited row.
+    const db = new Db({ dir: tmpDir('leverage-stored-') });
+    try {
+      for (const bad of HOSTILE) {
+        db.setConfig('settings', {
+          ...DEFAULT_SETTINGS,
+          semanticEnabled: true,
+          semanticProvider: 'local',
+          semanticLocalBaseUrl: bad,
+        });
+        assert.notEqual(
+          loadSettings(db).semanticLocalBaseUrl,
+          bad,
+          `${bad} must not survive a load`,
+        );
+      }
+    } finally {
+      db.close();
+    }
+  });
+
+  test('the provider refuses to build even if handed a hostile URL directly', () => {
+    const db = new Db({ dir: tmpDir('leverage-direct-') });
+    try {
+      for (const bad of HOSTILE) {
+        const p = createSemanticProvider(db, {
+          ...DEFAULT_SETTINGS,
+          semanticEnabled: true,
+          semanticProvider: 'local',
+          semanticLocalBaseUrl: bad,
+        });
+        assert.equal(p, undefined, `${bad} must not produce a provider`);
+      }
+      // …and a genuine loopback endpoint still works.
+      const ok = createSemanticProvider(db, {
+        ...DEFAULT_SETTINGS,
+        semanticEnabled: true,
+        semanticProvider: 'local',
+        semanticLocalBaseUrl: 'http://127.0.0.1:11434/v1',
+      });
+      assert.ok(ok, 'a loopback endpoint is still allowed');
+    } finally {
+      db.close();
+    }
   });
 });
