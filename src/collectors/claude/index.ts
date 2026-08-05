@@ -175,6 +175,8 @@ export class ClaudeCodeCollector implements Collector {
      * arrives.
      */
     const pendingByCallId = new Map<string, Record<string, unknown>>();
+    /** Emitted usage payloads by event id, so streaming repeats can raise them. */
+    const usageById = new Map<string, Record<string, unknown>>();
 
     const redactOpts = { mode: ctx.redactMode, customTerms: ctx.customRedactTerms } as const;
     const rd = (s: string | undefined, cap = 2000): string | undefined => {
@@ -279,20 +281,50 @@ export class ClaudeCodeCollector implements Collector {
             h.recordsIgnored++;
             return undefined;
           }
-          const id = hashId(
-            PROVIDER,
-            file.path,
-            line.lineIndex,
-            kind,
-            uuid ?? '',
-            payload.toolCallId ?? '',
-          );
+          // Usage records are keyed by the API request they describe, not by
+          // where they happen to sit on disk.
+          //
+          // Claude Code writes JSONL *during* streaming, so one response emits
+          // several entries under the same `requestId`, each repeating the same
+          // cache figures. A subagent's response is additionally written to both
+          // the parent transcript and its own `agent-*.jsonl`. Keying on
+          // file+line therefore counts one request many times — measured at
+          // exactly 2.00x on real history. Keying on (message id, request id)
+          // makes every copy collapse to one event, here and at the database's
+          // primary key, whichever file it arrives in.
+          const id =
+            kind === 'tokens.reported' && (payload.messageId ?? payload.requestId)
+              ? hashId(PROVIDER, 'usage', payload.messageId ?? '', payload.requestId ?? '')
+              : hashId(
+                  PROVIDER,
+                  file.path,
+                  line.lineIndex,
+                  kind,
+                  uuid ?? '',
+                  payload.toolCallId ?? '',
+                );
           if (ctx.seen.has(id)) {
             h.recordsDuplicate++;
+            // Streaming repeats a usage record with a monotonically rising
+            // output count, so the last copy is the complete one. Keeping the
+            // maximum is order-independent, which matters because a resumed or
+            // subagent transcript can deliver the copies out of order.
+            const prior = usageById.get(id);
+            if (prior) {
+              prior['tokensOut'] = Math.max(
+                Number(prior['tokensOut'] ?? 0),
+                Number(payload.tokensOut ?? 0),
+              );
+              prior['tokensIn'] = Math.max(
+                Number(prior['tokensIn'] ?? 0),
+                Number(payload.tokensIn ?? 0),
+              );
+            }
             return undefined;
           }
           ctx.seen.add(id);
           const mutable = { ...payload } as Record<string, unknown>;
+          if (kind === 'tokens.reported') usageById.set(id, mutable);
           const ev: NormalizedEvent = {
             id,
             kind,
@@ -504,9 +536,13 @@ function handleAssistant(
     // the field at face value would undercount Claude by orders of magnitude.
     const cacheRead = asNumber(usage['cache_read_input_tokens']) ?? 0;
     const cacheWrite = asNumber(usage['cache_creation_input_tokens']) ?? 0;
+    const messageId = asString(msg['id']);
+    const requestId = asString(rec['requestId']);
     push('tokens.reported', undefined, {
       rawType: 'assistant:usage',
       ...(model ? { model } : {}),
+      ...(messageId ? { messageId } : {}),
+      ...(requestId ? { requestId } : {}),
       tokensIn: (asNumber(usage['input_tokens']) ?? 0) + cacheRead + cacheWrite,
       tokensOut: asNumber(usage['output_tokens']) ?? 0,
       tokensCacheRead: cacheRead,

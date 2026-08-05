@@ -255,14 +255,20 @@ export class CodexCollector implements Collector {
             }
             seenCallIds.add(`${kind}:${callId}`);
           }
-          const id = hashId(
-            PROVIDER,
-            file.path,
-            line.lineIndex,
-            kind,
-            callId ?? '',
-            p.rawType ?? '',
-          );
+          // Codex writes every `token_count` event twice, a fraction of a
+          // second apart and byte-identical — measured at 231 duplicate pairs
+          // out of 462 records in one session, i.e. exactly half. Keying usage
+          // on the session's running cumulative total instead of the file line
+          // collapses each pair, because that total is monotonic and so
+          // identifies the turn regardless of how many times it is written.
+          // Scoped to the transcript: the running total is only monotonic
+          // within a session, and two sessions can share an early value.
+          // Codex's duplicates are adjacent lines in one file, so file-scoping
+          // still collapses every one of them.
+          const id =
+            kind === 'tokens.reported' && p.requestId
+              ? hashId(PROVIDER, 'usage', file.path, p.requestId)
+              : hashId(PROVIDER, file.path, line.lineIndex, kind, callId ?? '', p.rawType ?? '');
           if (ctx.seen.has(id)) {
             h.recordsDuplicate++;
             return -1;
@@ -636,9 +642,18 @@ function handleEventMsg(
       // Codex reports `input_tokens` already inclusive of `cached_input_tokens`
       // (input + output == total_tokens), so unlike Claude it needs no
       // adjustment — the cached figure is a breakdown, not an addend.
-      // `reasoning_output_tokens` is likewise already inside `output_tokens`.
+      // `reasoning_output_tokens` is likewise already inside `output_tokens`,
+      // verified across 30,263 records with reasoning > 0 and no counterexample
+      // — so unlike Claude, Codex output is complete rather than a floor.
+      //
+      // The cumulative total doubles as this turn's identity for deduplication;
+      // it rises monotonically, so the pair of identical records Codex writes
+      // for one turn share it and collapse.
+      const total = info && isRecord(info['total_token_usage']) ? info['total_token_usage'] : {};
+      const turnKey = `${asNumber(total['input_tokens']) ?? 0}:${asNumber(total['output_tokens']) ?? 0}:${asNumber(total['total_tokens']) ?? 0}`;
       push('tokens.reported', undefined, {
         rawType: t,
+        requestId: turnKey,
         tokensIn: asNumber(last['input_tokens']) ?? 0,
         tokensOut: asNumber(last['output_tokens']) ?? 0,
         tokensCacheRead: asNumber(last['cached_input_tokens']) ?? 0,

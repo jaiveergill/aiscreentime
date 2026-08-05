@@ -792,10 +792,21 @@ function statusBreakdown(m: DayMetrics): HTMLElement {
       h('dd', {}, `${Math.round(m.parallelismLeverage * 100)}%`, ' ', tag('derived')),
       // Tokens are the only figures here the providers hand us outright, so
       // they carry 'measured' rather than 'derived' or 'inferred'.
-      h('dt', {}, 'tokens in'),
+      h(
+        'dt',
+        { title: 'Cache reads included. Streaming repeats of one request count once.' },
+        'tokens in',
+      ),
       h('dd', {}, fmtCount(m.tokensIn), ' ', tag('measured')),
-      h('dt', {}, 'tokens out'),
-      h('dd', {}, fmtCount(m.tokensOut), ' ', tag('measured')),
+      h(
+        'dt',
+        {
+          title:
+            'A floor, not a total: the transcripts omit thinking tokens, so real output is higher.',
+        },
+        'tokens out',
+      ),
+      h('dd', {}, fmtCount(m.tokensOut), '+', ' ', tag('measured')),
       h('dt', {}, 'cached'),
       h(
         'dd',

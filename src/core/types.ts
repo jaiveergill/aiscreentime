@@ -133,6 +133,13 @@ export interface EventPayload {
   readonly tokensOut?: number;
   readonly tokensCacheRead?: number;
   readonly tokensCacheWrite?: number;
+  /**
+   * Provider ids for the API request a usage record describes. Streaming emits
+   * several records per request, so these are what make one request countable
+   * exactly once.
+   */
+  readonly messageId?: string;
+  readonly requestId?: string;
   readonly model?: string;
   readonly subagentId?: string;
   readonly subagentLabel?: string;
