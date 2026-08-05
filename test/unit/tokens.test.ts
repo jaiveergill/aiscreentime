@@ -57,7 +57,11 @@ describe('token normalisation across providers', () => {
         2 + 20_729 + 17_883,
         'input must include both cache read and cache creation',
       );
-      assert.equal(ev.payload.tokensOut, 109);
+      assert.equal(
+        ev.payload.tokensOut,
+        undefined,
+        'output is not recorded at all: the transcript omits thinking tokens, so any figure would be a fraction wearing the label of a total',
+      );
       assert.equal(ev.payload.tokensCacheRead, 20_729, 'the cached share stays available');
     } finally {
       cleanup(home);
@@ -191,8 +195,8 @@ describe('streaming repeats count as one request', () => {
       );
       assert.equal(
         usageEvents[0]?.payload.tokensOut,
-        120,
-        'output takes the final, highest value rather than the first',
+        undefined,
+        'Claude output is never recorded, whichever streamed record wins',
       );
     } finally {
       cleanup(home);

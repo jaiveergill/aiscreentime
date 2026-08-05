@@ -29,7 +29,7 @@ import { loadEvents } from './pipeline.ts';
  * silently returning a payload missing half its fields is worse than being
  * slow — the UI renders blanks and nobody can tell why.
  */
-export const METRICS_SHAPE_VERSION = 3;
+export const METRICS_SHAPE_VERSION = 4;
 
 const EMPTY_STATUS_COUNTS: Record<TaskStatus, number> = {
   'completed-validated': 0,
@@ -134,13 +134,20 @@ export function computeDayMetrics(db: Db, day: string, settings: Settings): DayM
   // Token totals follow the same inclusion rule as every other figure on the
   // day: an excluded task does not contribute. Unlike the hours these are
   // measured, not estimated — the providers report them directly.
+  //
+  // Output is withheld entirely once any Claude Code work is in the day. Its
+  // transcripts omit thinking tokens, so the surviving figure is a fraction of
+  // the real output; adding a complete Codex total to an incomplete Claude one
+  // produces a number that is wrong and looks authoritative.
   let tokensIn = 0;
   let tokensOut = 0;
   let tokensCacheRead = 0;
+  let tokensOutAvailable = included.length > 0;
   for (const t of included) {
     tokensIn += t.evidence.tokensIn ?? 0;
     tokensOut += t.evidence.tokensOut ?? 0;
     tokensCacheRead += t.evidence.tokensCacheRead ?? 0;
+    if (t.providers.includes('claude-code')) tokensOutAvailable = false;
   }
 
   const avgConfidence = included.length > 0 ? confidenceSum / Math.max(1, estimates.size) : 0;
@@ -172,6 +179,7 @@ export function computeDayMetrics(db: Db, day: string, settings: Settings): DayM
     meanConcurrency: concurrency.mean,
     tokensIn,
     tokensOut,
+    tokensOutAvailable,
     tokensCacheRead,
     concurrentAgentHours: concurrency.concurrentAgentMs / HOUR,
     taskCount: included.length,
@@ -332,6 +340,7 @@ export function emptyDayMetrics(day: string): DayMetrics {
     meanConcurrency: 0,
     tokensIn: 0,
     tokensOut: 0,
+    tokensOutAvailable: false,
     tokensCacheRead: 0,
     concurrentAgentHours: 0,
     taskCount: 0,

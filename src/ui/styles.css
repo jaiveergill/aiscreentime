@@ -1260,6 +1260,13 @@ input[type='checkbox'] {
   color: var(--text-dim);
 }
 
+/* Why a figure is absent, set beside the em dash that stands in for it. */
+.kv dd .note {
+  color: var(--text-faint);
+  font-size: 11px;
+  letter-spacing: 0.01em;
+}
+
 .faint {
   color: var(--text-faint);
 }

@@ -364,12 +364,22 @@ of its cached subset. The collectors normalise both to mean the same thing:
 every token the model was fed. Cache reads are shown separately because on a
 long session they are the overwhelming majority.
 
-**Output is a floor, not a total.** Claude Code's transcripts omit thinking
-tokens entirely, so real output is higher than what is shown and nothing in the
-logs can recover the difference; the upstream request for complete accounting
-was closed as not planned. Codex does include reasoning inside `output_tokens`,
-so the shortfall is Claude's alone — but a combined figure inherits it. Output
-is therefore rendered with a trailing `+` everywhere it appears.
+**Claude Code output tokens are not available, so none are shown.** Its
+transcripts omit thinking tokens entirely, and on a reasoning model thinking is
+the majority of the output — so the surviving `output_tokens` is a fraction, not
+a total, and nothing in the logs can recover the rest. The upstream request for
+complete accounting was closed as not planned. Rather than print a number that
+is wrong and looks authoritative, the field is not recorded at all and the
+display reads `—`.
+
+Codex does include reasoning inside its `output_tokens`, so its figure is
+complete and is shown as measured. A day containing any Claude Code work shows
+`—` regardless: adding a complete total to an incomplete one produces neither.
+
+The accurate source for Claude output exists, but not in these files — the
+`statusLine` hook receives `context_window.total_output_tokens` along with real
+cost. Capturing it would require a small opt-in script and would only ever
+apply from the day it was installed, so it is not part of this version.
 
 Tokens are never used as an input to estimation (§10). They describe what the
 agents consumed, not how much work was done.

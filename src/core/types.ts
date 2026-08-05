@@ -407,8 +407,17 @@ export interface DayMetrics {
   readonly meanConcurrency: number;
   /** Tokens fed to models across the day, cache included. Measured, not estimated. */
   readonly tokensIn: number;
-  /** Tokens generated across the day. */
+  /**
+   * Tokens generated across the day, counting only providers that report them
+   * completely. Meaningless unless `tokensOutAvailable` is true.
+   */
   readonly tokensOut: number;
+  /**
+   * False when any work in the day came from a provider that does not report
+   * output tokens — Claude Code omits thinking tokens from its transcripts, so
+   * a total that includes it would be a fraction wearing the label of a total.
+   */
+  readonly tokensOutAvailable: boolean;
   /** The portion of `tokensIn` served from cache. */
   readonly tokensCacheRead: number;
   readonly concurrentAgentHours: number;

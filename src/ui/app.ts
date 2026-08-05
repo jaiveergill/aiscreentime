@@ -111,6 +111,7 @@ export interface DayMetrics {
   meanConcurrency: number;
   tokensIn: number;
   tokensOut: number;
+  tokensOutAvailable: boolean;
   tokensCacheRead: number;
   concurrentAgentHours: number;
   taskCount: number;
@@ -801,12 +802,21 @@ function statusBreakdown(m: DayMetrics): HTMLElement {
       h(
         'dt',
         {
-          title:
-            'A floor, not a total: the transcripts omit thinking tokens, so real output is higher.',
+          title: m.tokensOutAvailable
+            ? 'Reported in full by the provider.'
+            : 'Claude Code does not record output tokens. Its transcripts omit thinking tokens, which are most of the output on a reasoning model, so no total can be recovered from them.',
         },
         'tokens out',
       ),
-      h('dd', {}, fmtCount(m.tokensOut), '+', ' ', tag('measured')),
+      m.tokensOutAvailable
+        ? h('dd', {}, fmtCount(m.tokensOut), ' ', tag('measured'))
+        : h(
+            'dd',
+            { class: 'muted' },
+            '—',
+            ' ',
+            h('span', { class: 'note' }, 'not reported by Claude Code'),
+          ),
       h('dt', {}, 'cached'),
       h(
         'dd',

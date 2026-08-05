@@ -443,11 +443,17 @@ function printDay(ctx: ReturnType<typeof createContext>, day: string, asJson: bo
     `  ${m.projectCount} projects · ${m.concurrentAgentHours.toFixed(1)} concurrent agent-hours · ` +
       `${Math.round(m.verificationRate * 100)}% verification strength\n`,
   );
-  const cachePct = m.tokensIn > 0 ? Math.round((m.tokensCacheRead / m.tokensIn) * 100) : 0;
-  process.stdout.write(
-    `  ${fmtCount(m.tokensIn)} tokens in · ${fmtCount(m.tokensOut)}+ out · ${cachePct}% cached\n` +
-      `  ${c.dim('output is a floor — Claude Code transcripts omit thinking tokens')}\n`,
-  );
+  // Nothing to say when no usage was recorded at all — the demo dataset and
+  // any provider that reports none would otherwise print a row of zeroes.
+  if (m.tokensIn > 0) {
+    const cachePct = Math.round((m.tokensCacheRead / m.tokensIn) * 100);
+    process.stdout.write(
+      `  ${fmtCount(m.tokensIn)} tokens in · ${m.tokensOutAvailable ? `${fmtCount(m.tokensOut)} out` : '— out'} · ${cachePct}% cached\n` +
+        (m.tokensOutAvailable
+          ? ''
+          : `  ${c.dim('output tokens are not recorded by Claude Code')}\n`),
+    );
+  }
   process.stdout.write(
     `  ${c.dim(`range ${roundHuman(m.verifiedHours.p10)}–${roundHuman(m.verifiedHours.p90)}h · confidence ${m.confidence} · steering ${formatDuration(m.steeringLowMs)}–${formatDuration(m.steeringHighMs)}`)}\n`,
   );

@@ -311,14 +311,15 @@ export class ClaudeCodeCollector implements Collector {
             // subagent transcript can deliver the copies out of order.
             const prior = usageById.get(id);
             if (prior) {
-              prior['tokensOut'] = Math.max(
-                Number(prior['tokensOut'] ?? 0),
-                Number(payload.tokensOut ?? 0),
-              );
-              prior['tokensIn'] = Math.max(
-                Number(prior['tokensIn'] ?? 0),
-                Number(payload.tokensIn ?? 0),
-              );
+              // Only raise fields that were actually recorded — writing a
+              // Math.max default would turn a deliberately absent output count
+              // into a confident zero.
+              for (const field of ['tokensIn', 'tokensOut'] as const) {
+                const next = payload[field];
+                if (next === undefined) continue;
+                const seen = prior[field];
+                prior[field] = seen === undefined ? next : Math.max(Number(seen), next);
+              }
             }
             return undefined;
           }
@@ -544,7 +545,13 @@ function handleAssistant(
       ...(messageId ? { messageId } : {}),
       ...(requestId ? { requestId } : {}),
       tokensIn: (asNumber(usage['input_tokens']) ?? 0) + cacheRead + cacheWrite,
-      tokensOut: asNumber(usage['output_tokens']) ?? 0,
+      // `output_tokens` is deliberately not recorded. It counts only the
+      // visible reply — thinking tokens are omitted from the transcript
+      // entirely, and on a reasoning model they are the majority of the
+      // output. The figure is therefore not the number it appears to be, and
+      // no amount of it can be recovered from these files. Reporting a
+      // fraction under an "output" label is worse than reporting nothing, so
+      // the field stays absent and the UI says so.
       tokensCacheRead: cacheRead,
       tokensCacheWrite: cacheWrite,
     });
