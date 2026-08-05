@@ -140,8 +140,8 @@ releases. The defences:
 
 ## Storage
 
-One SQLite file, WAL mode, at `~/.leverage/leverage.db` (override with
-`LEVERAGE_HOME`).
+One SQLite file, WAL mode, at `~/.screentime/screentime.db` (override with
+`SCREENTIME_HOME`).
 
 | Table | Regenerable | Purpose |
 | --- | --- | --- |

@@ -355,7 +355,7 @@ export function renderSettings(
                     });
                     const a = document.createElement('a');
                     a.href = URL.createObjectURL(blob);
-                    a.download = `leverage-export-${new Date().toISOString().slice(0, 10)}.json`;
+                    a.download = `screentime-export-${new Date().toISOString().slice(0, 10)}.json`;
                     a.click();
                     URL.revokeObjectURL(a.href);
                   },
@@ -387,7 +387,7 @@ export function renderSettings(
                   onclick: async () => {
                     if (
                       !confirm(
-                        'Delete everything Leverage has imported, including all events? Your Claude Code and Codex files are never touched.',
+                        'Delete everything AI Screen Time has imported, including all events? Your Claude Code and Codex files are never touched.',
                       )
                     )
                       return;
@@ -527,7 +527,7 @@ function diagnosticsBody(d: Record<string, unknown>): HTMLElement {
               'p',
               { class: 'muted', style: { fontSize: '12.5px', margin: 0 } },
               'Nothing parsed yet. Run a scan, or try ',
-              h('code', {}, 'leverage demo'),
+              h('code', {}, 'screentime demo'),
               '.',
             )
           : null,

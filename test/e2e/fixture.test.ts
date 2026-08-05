@@ -48,7 +48,7 @@ function est(fragment: string): TaskEstimate {
 }
 
 before(() => {
-  dir = tmpDir('leverage-fixture-');
+  dir = tmpDir('screentime-fixture-');
   db = new Db({ dir });
   installDemoData(db, DEMO_BASE);
   const s = settings();
@@ -263,7 +263,7 @@ describe('fixture: day metrics', () => {
 
   test('the headline is not absurd relative to the steering time', () => {
     const m = computeDayMetrics(db, DAY, settings());
-    // A sanity ceiling. If leverage ever exceeds this on a 12-task day, the
+    // A sanity ceiling. If the multiple ever exceeds this on a 12-task day, the
     // model has a bug, not a discovery.
     assert.ok(m.outputLeverage > 1, 'agents should beat unassisted work');
     assert.ok(

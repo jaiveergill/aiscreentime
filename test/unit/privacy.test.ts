@@ -376,7 +376,7 @@ describe('share card privacy defaults', () => {
 /* ================================================================== */
 
 describe('the local semantic provider keeps its promise', () => {
-  const openDb = () => new Db({ dir: tmpDir('leverage-egress-') });
+  const openDb = () => new Db({ dir: tmpDir('screentime-egress-') });
 
   test('never sends an API key to a local endpoint', () => {
     // The settings UI labels this provider "nothing leaves this machine".
@@ -485,7 +485,7 @@ describe('a hostile endpoint cannot reach the network by any route', () => {
   test('a value already in the database is re-validated on read', () => {
     // Checking only on write would trust anything written by an older build,
     // a restored backup, or a hand-edited row.
-    const db = new Db({ dir: tmpDir('leverage-stored-') });
+    const db = new Db({ dir: tmpDir('screentime-stored-') });
     try {
       for (const bad of HOSTILE) {
         db.setConfig('settings', {
@@ -506,7 +506,7 @@ describe('a hostile endpoint cannot reach the network by any route', () => {
   });
 
   test('the provider refuses to build even if handed a hostile URL directly', () => {
-    const db = new Db({ dir: tmpDir('leverage-direct-') });
+    const db = new Db({ dir: tmpDir('screentime-direct-') });
     try {
       for (const bad of HOSTILE) {
         const p = createSemanticProvider(db, {

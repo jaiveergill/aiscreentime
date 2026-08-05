@@ -1,5 +1,5 @@
 /**
- * Canonical, provider-neutral domain model for Leverage.
+ * Canonical, provider-neutral domain model.
  *
  * Everything downstream of the collectors speaks this vocabulary. Adding a new
  * agent provider means writing a collector that emits `NormalizedEvent`s; no
@@ -260,6 +260,17 @@ export interface TaskEvidence {
   readonly researchArtifacts: number;
   readonly filesStillPresent: number;
   readonly filesMissing: number;
+  /**
+   * Tokens the model was fed across this task's turns, cache included.
+   *
+   * Normalised by the collectors: the two providers report cached input on
+   * opposite conventions, so the raw fields are not comparable.
+   */
+  readonly tokensIn: number;
+  /** Tokens generated, reasoning included where the provider reports it. */
+  readonly tokensOut: number;
+  /** The portion of `tokensIn` that was served from cache rather than re-read. */
+  readonly tokensCacheRead: number;
 }
 
 export interface TaskRecord {
@@ -387,6 +398,12 @@ export interface DayMetrics {
   readonly agentAutonomy: number;
   readonly peakConcurrency: number;
   readonly meanConcurrency: number;
+  /** Tokens fed to models across the day, cache included. Measured, not estimated. */
+  readonly tokensIn: number;
+  /** Tokens generated across the day. */
+  readonly tokensOut: number;
+  /** The portion of `tokensIn` served from cache. */
+  readonly tokensCacheRead: number;
   readonly concurrentAgentHours: number;
   readonly taskCount: number;
   readonly statusCounts: Readonly<Record<TaskStatus, number>>;

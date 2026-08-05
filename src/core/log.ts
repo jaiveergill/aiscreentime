@@ -5,7 +5,7 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 const LEVEL_ORDER: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, error: 40 };
 
-let minLevel: LogLevel = (process.env.LEVERAGE_LOG_LEVEL as LogLevel) || 'info';
+let minLevel: LogLevel = (process.env.SCREENTIME_LOG_LEVEL as LogLevel) || 'info';
 let logFile: string | undefined;
 let stream: fs.WriteStream | undefined;
 let quiet = false;
@@ -16,7 +16,7 @@ export function configureLogging(opts: { level?: LogLevel; dir?: string; quiet?:
   if (opts.dir) {
     // Owner-only: log lines carry file paths and command text.
     fs.mkdirSync(opts.dir, { recursive: true, mode: 0o700 });
-    logFile = path.join(opts.dir, 'leverage.log');
+    logFile = path.join(opts.dir, 'screentime.log');
     stream?.end();
     stream = fs.createWriteStream(logFile, { flags: 'a', mode: 0o600 });
   }
@@ -31,7 +31,7 @@ function emit(level: LogLevel, msg: string, fields?: Record<string, unknown>): v
   if (quiet) return;
   if (level === 'error') process.stderr.write(`${line}\n`);
   else if (level === 'warn') process.stderr.write(`${line}\n`);
-  else if (process.env.LEVERAGE_LOG_STDOUT === '1') process.stdout.write(`${line}\n`);
+  else if (process.env.SCREENTIME_LOG_STDOUT === '1') process.stdout.write(`${line}\n`);
 }
 
 export const log = {

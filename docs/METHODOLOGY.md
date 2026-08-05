@@ -2,7 +2,7 @@
 
 Benchmark version **v1.0.0**.
 
-Every number Leverage shows is tagged with what kind of number it is:
+Every number this tool shows is tagged with what kind of number it is:
 
 | Tag | Meaning |
 | --- | --- |
@@ -54,7 +54,7 @@ So the credible range for *interactive assistance on one task* is somewhere
 between meaningfully slower and roughly twice as fast. Nothing in that range
 produces a 27× headline.
 
-Leverage therefore applies **no per-task speedup multiplier at all.** Each task is
+It therefore applies **no per-task speedup multiplier at all.** Each task is
 estimated on its own evidence, as if a conventional engineer had been asked to
 produce that same outcome. The multiplier is an *output* of the accounting, and it
 emerges from three things:
@@ -65,7 +65,7 @@ emerges from three things:
 3. **Delegation of the long tail.** Work that would otherwise not be done at all —
    the test suite nobody had time for, the doc nobody wrote.
 
-If your leverage number is large, it is because you completed and verified many
+If your multiple is large, it is because you completed and verified many
 tasks while steering for a few hours — not because a knob was set to 27.
 
 ---
@@ -99,7 +99,7 @@ ranges are presented as approximate.
 
 Each category has a median and a sigma for a *typical* task of that kind, in a
 codebase the engineer works in regularly. Full table with per-category rationale:
-`leverage methodology`, or the **Method** tab in the dashboard.
+`screentime methodology`, or the **Method** tab in the dashboard.
 
 Anchoring:
 
@@ -322,7 +322,7 @@ signal has a perfect margin but tells you almost nothing.
 
 ## 12. Calibration
 
-When you answer "how long would this actually have taken you?", Leverage learns a
+When you answer "how long would this actually have taken you?", it learns a
 per-category ratio between your answer and the standardised estimate.
 
 Two rules keep this honest:

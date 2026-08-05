@@ -142,7 +142,7 @@ export function renderCard(data: CardData, opts: CardOptions): string {
 }
 
 function frame(p: Palette, w: number, h: number, body: string): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Leverage daily summary">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="AI Screen Time daily summary">
   <defs>
     <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="${p.accent}" stop-opacity="0.20"/>
@@ -159,7 +159,7 @@ function frame(p: Palette, w: number, h: number, body: string): string {
 function wordmark(p: Palette, x: number, y: number): string {
   return `<g transform="translate(${x},${y})">
     <rect x="0" y="-11" width="4" height="14" rx="2" fill="${p.accent}"/>
-    <text x="14" y="0" font-family="${FONT_STACK}" font-size="15" font-weight="600" letter-spacing="0.14em" fill="${p.muted}">LEVERAGE</text>
+    <text x="14" y="0" font-family="${FONT_STACK}" font-size="15" font-weight="600" letter-spacing="0.14em" fill="${p.muted}">AI SCREEN TIME</text>
   </g>`;
 }
 

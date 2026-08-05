@@ -1,5 +1,5 @@
 {
-  "name": "@jaiveergill/leverage",
+  "name": "aiscreentime",
   "version": "0.1.0",
   "description": "Reconstructs the engineering work you completed through Claude Code and Codex, and estimates how long it would have taken without AI. Fully local.",
   "license": "MIT",
@@ -8,7 +8,7 @@
     "node": ">=22.5.0"
   },
   "bin": {
-    "leverage": "./bin/leverage.js"
+    "screentime": "./bin/screentime.js"
   },
   "files": [
     "bin",
@@ -49,13 +49,13 @@
     "cli"
   ],
   "author": "Jaiveer Gill",
-  "homepage": "https://github.com/jaiveergill/leverage#readme",
+  "homepage": "https://github.com/jaiveergill/aiscreentime#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jaiveergill/leverage.git"
+    "url": "git+https://github.com/jaiveergill/aiscreentime.git"
   },
   "bugs": {
-    "url": "https://github.com/jaiveergill/leverage/issues"
+    "url": "https://github.com/jaiveergill/aiscreentime/issues"
   },
   "publishConfig": {
     "access": "public"

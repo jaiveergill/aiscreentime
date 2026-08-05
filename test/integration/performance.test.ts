@@ -17,8 +17,8 @@ import { cleanup, settings, tmpDir } from '../helpers.ts';
  * synthetic transcripts in the repository would be worse than useless.
  */
 
-const SESSIONS = Number(process.env['LEVERAGE_STRESS_SESSIONS'] ?? 400);
-const RECORDS_PER_SESSION = Number(process.env['LEVERAGE_STRESS_RECORDS'] ?? 60);
+const SESSIONS = Number(process.env['SCREENTIME_STRESS_SESSIONS'] ?? 400);
+const RECORDS_PER_SESSION = Number(process.env['SCREENTIME_STRESS_RECORDS'] ?? 60);
 
 function generateClaudeCorpus(home: string, sessions: number, records: number): number {
   let bytes = 0;

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 
 import { configureLogging, log } from '../core/log.ts';
-import { dayKey, formatDuration, roundHuman } from '../core/util.ts';
+import { dayKey, fmtCount, formatDuration, roundHuman } from '../core/util.ts';
 import { loadSettings, saveSettings } from '../core/config.ts';
 import { createContext, handleApi, runIngest, startAutoRefresh } from '../server/api.ts';
 import { createServer, listen } from '../server/http.ts';
@@ -18,10 +18,10 @@ import { BENCHMARK_VERSION } from '../estimate/priors.ts';
 import { demoBaseInstant, installDemoData } from '../demo/generate.ts';
 
 const HELP = `
-leverage — personal AI engineering leverage tracker
+screentime — your AI screen time, for engineering
 
 USAGE
-  leverage [command] [options]
+  screentime [command] [options]
 
 COMMANDS
   run                Open the dashboard now, scan in the background
@@ -96,7 +96,7 @@ export async function main(argv: string[]): Promise<number> {
   configureLogging({
     dir: ctx.db.dir,
     quiet: true,
-    level: (process.env.LEVERAGE_LOG_LEVEL as 'info') ?? 'info',
+    level: (process.env.SCREENTIME_LOG_LEVEL as 'info') ?? 'info',
   });
   const settings = loadSettings(ctx.db);
 
@@ -126,10 +126,12 @@ export async function main(argv: string[]): Promise<number> {
           // instance that is still holding the one you asked for.
           process.stdout.write(
             `\n  ${c.yellow(`Port ${port} was busy — using ${actual} instead.`)}\n` +
-              `  ${c.dim(`Something is already listening on ${port}; if it is another Leverage, stop it first.`)}\n`,
+              `  ${c.dim(`Something is already listening on ${port}; if it is another AI Screen Time, stop it first.`)}\n`,
           );
         }
-        process.stdout.write(`\n  ${c.bold('Leverage')} ${c.dim(`· ${BENCHMARK_VERSION}`)}\n`);
+        process.stdout.write(
+          `\n  ${c.bold('AI Screen Time')} ${c.dim(`· ${BENCHMARK_VERSION}`)}\n`,
+        );
         process.stdout.write(`  ${c.cyan(url)}\n`);
         process.stdout.write(`  ${c.dim(`data: ${ctx.db.file}`)}\n`);
         process.stdout.write(`  ${c.dim('Ctrl-C to stop. Everything stays on this machine.')}\n\n`);
@@ -149,7 +151,7 @@ export async function main(argv: string[]): Promise<number> {
           void runIngest(ctx, settings, true).catch((err: unknown) => {
             log.warn('background scan failed', { err: String(err) });
             process.stdout.write(
-              `  ${c.yellow('Background scan failed.')} ${c.dim('Run `leverage ingest` to see why.')}\n`,
+              `  ${c.yellow('Background scan failed.')} ${c.dim('Run `screentime ingest` to see why.')}\n`,
             );
           });
         }
@@ -166,7 +168,7 @@ export async function main(argv: string[]): Promise<number> {
 
       case 'ingest': {
         await runIngestWithProgress(ctx, args);
-        // Running `leverage ingest` is itself the consent onboarding asks for,
+        // Running `screentime ingest` is itself the consent onboarding asks for,
         // so the dashboard should not demand it again afterwards.
         saveSettings(ctx.db, { onboarded: true });
         const last = ctx.state.lastIngest;
@@ -237,7 +239,7 @@ export async function main(argv: string[]): Promise<number> {
           process.stderr.write(`${c.red('Failed to render card')}: ${JSON.stringify(res.body)}\n`);
           return 1;
         }
-        const out = (args.flags['out'] as string) ?? `leverage-${day}-${variant}.svg`;
+        const out = (args.flags['out'] as string) ?? `screentime-${day}-${variant}.svg`;
         fs.writeFileSync(out, res.raw, 'utf8');
         const preview = await handleApi(
           ctx,
@@ -321,7 +323,7 @@ export async function main(argv: string[]): Promise<number> {
         process.stdout.write(
           `\n  ${c.green('✓')} loaded ${n} synthetic events → ${res.tasksBuilt} tasks on ${c.bold(demoDay)}\n` +
             `  ${c.yellow('This is clearly-labelled demo data, not your real activity.')}\n` +
-            `  View it with ${c.bold(`leverage day ${demoDay}`)} · remove it with ${c.bold('leverage reset --all')}\n\n`,
+            `  View it with ${c.bold(`screentime day ${demoDay}`)} · remove it with ${c.bold('screentime reset --all')}\n\n`,
         );
         return 0;
       }
@@ -415,7 +417,7 @@ function printDay(ctx: ReturnType<typeof createContext>, day: string, asJson: bo
   if (!days.includes(day) && m.taskCount === 0) {
     process.stdout.write(
       `\n  No engineering activity recorded for ${c.bold(day)}.\n` +
-        `  ${c.dim(`Days with activity: ${days.slice(0, 8).join(', ') || 'none yet — run `leverage ingest`'}`)}\n\n`,
+        `  ${c.dim(`Days with activity: ${days.slice(0, 8).join(', ') || 'none yet — run `screentime ingest`'}`)}\n\n`,
     );
     return;
   }
@@ -440,6 +442,10 @@ function printDay(ctx: ReturnType<typeof createContext>, day: string, asJson: bo
   process.stdout.write(
     `  ${m.projectCount} projects · ${m.concurrentAgentHours.toFixed(1)} concurrent agent-hours · ` +
       `${Math.round(m.verificationRate * 100)}% verification strength\n`,
+  );
+  const cachePct = m.tokensIn > 0 ? Math.round((m.tokensCacheRead / m.tokensIn) * 100) : 0;
+  process.stdout.write(
+    `  ${fmtCount(m.tokensIn)} tokens in · ${fmtCount(m.tokensOut)} out · ${cachePct}% cached\n`,
   );
   process.stdout.write(
     `  ${c.dim(`range ${roundHuman(m.verifiedHours.p10)}–${roundHuman(m.verifiedHours.p90)}h · confidence ${m.confidence} · steering ${formatDuration(m.steeringLowMs)}–${formatDuration(m.steeringHighMs)}`)}\n`,

@@ -29,7 +29,7 @@ import { loadEvents } from './pipeline.ts';
  * silently returning a payload missing half its fields is worse than being
  * slow — the UI renders blanks and nobody can tell why.
  */
-export const METRICS_SHAPE_VERSION = 2;
+export const METRICS_SHAPE_VERSION = 3;
 
 const EMPTY_STATUS_COUNTS: Record<TaskStatus, number> = {
   'completed-validated': 0,
@@ -44,7 +44,7 @@ const EMPTY_STATUS_COUNTS: Record<TaskStatus, number> = {
 };
 
 /**
- * Leverage metrics for one day.
+ * Metrics for one day.
  *
  * Several distinct ratios are computed rather than one headline multiplier,
  * because collapsing them hides where the leverage actually comes from — and
@@ -131,6 +131,18 @@ export function computeDayMetrics(db: Db, day: string, settings: Settings): DayM
   const agentAutonomy =
     concurrency.wallClockAgentMs > 0 ? unattendedMs / concurrency.wallClockAgentMs : 0;
 
+  // Token totals follow the same inclusion rule as every other figure on the
+  // day: an excluded task does not contribute. Unlike the hours these are
+  // measured, not estimated — the providers report them directly.
+  let tokensIn = 0;
+  let tokensOut = 0;
+  let tokensCacheRead = 0;
+  for (const t of included) {
+    tokensIn += t.evidence.tokensIn ?? 0;
+    tokensOut += t.evidence.tokensOut ?? 0;
+    tokensCacheRead += t.evidence.tokensCacheRead ?? 0;
+  }
+
   const avgConfidence = included.length > 0 ? confidenceSum / Math.max(1, estimates.size) : 0;
   const confidence: ConfidenceLevel =
     avgConfidence >= 0.68 ? 'high' : avgConfidence >= 0.42 ? 'medium' : 'low';
@@ -158,6 +170,9 @@ export function computeDayMetrics(db: Db, day: string, settings: Settings): DayM
     agentAutonomy,
     peakConcurrency: concurrency.peak,
     meanConcurrency: concurrency.mean,
+    tokensIn,
+    tokensOut,
+    tokensCacheRead,
     concurrentAgentHours: concurrency.concurrentAgentMs / HOUR,
     taskCount: included.length,
     statusCounts,
@@ -315,6 +330,9 @@ export function emptyDayMetrics(day: string): DayMetrics {
     agentAutonomy: 0,
     peakConcurrency: 0,
     meanConcurrency: 0,
+    tokensIn: 0,
+    tokensOut: 0,
+    tokensCacheRead: 0,
     concurrentAgentHours: 0,
     taskCount: 0,
     statusCounts: { ...EMPTY_STATUS_COUNTS },

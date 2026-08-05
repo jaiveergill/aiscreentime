@@ -497,13 +497,20 @@ function handleAssistant(
   const model = asString(msg['model']);
   const usage = msg['usage'];
   if (isRecord(usage)) {
+    // `input_tokens` here counts only the uncached remainder — a cached turn
+    // reports 2 against 20k actually read from cache. `tokensIn` is normalised
+    // to every token the model was fed, because analytics sums it across
+    // providers and Codex reports its input already inclusive of cache. Taking
+    // the field at face value would undercount Claude by orders of magnitude.
+    const cacheRead = asNumber(usage['cache_read_input_tokens']) ?? 0;
+    const cacheWrite = asNumber(usage['cache_creation_input_tokens']) ?? 0;
     push('tokens.reported', undefined, {
       rawType: 'assistant:usage',
       ...(model ? { model } : {}),
-      tokensIn: asNumber(usage['input_tokens']) ?? 0,
+      tokensIn: (asNumber(usage['input_tokens']) ?? 0) + cacheRead + cacheWrite,
       tokensOut: asNumber(usage['output_tokens']) ?? 0,
-      tokensCacheRead: asNumber(usage['cache_read_input_tokens']) ?? 0,
-      tokensCacheWrite: asNumber(usage['cache_creation_input_tokens']) ?? 0,
+      tokensCacheRead: cacheRead,
+      tokensCacheWrite: cacheWrite,
     });
   }
 

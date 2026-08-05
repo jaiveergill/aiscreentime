@@ -451,7 +451,7 @@ export async function handleApi(
       externalRequests: listExternalRequests(ctx.db, 50),
       dbPath: ctx.db.file,
       dbBytes: ctx.db.sizeBytes(),
-      logFile: path.join(ctx.db.dir, 'leverage.log'),
+      logFile: path.join(ctx.db.dir, 'screentime.log'),
     });
   }
 

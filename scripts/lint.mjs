@@ -6,7 +6,7 @@
  * rule set would not know about:
  *
  *  1. Node's type stripping rejects parameter properties, enums and namespaces.
- *     Using them breaks `leverage` when run from source.
+ *     Using them breaks `screentime` when run from source.
  *  2. Nothing outside `src/git/git.ts` may spawn `git`, and nothing anywhere may
  *     write to a provider's data directory. Read-only access to agent files is
  *     a product promise, not a convention.
@@ -105,7 +105,7 @@ const RULES = [
   },
   {
     id: 'never-write-to-provider-directories',
-    why: 'Leverage must never modify Claude Code or Codex files.',
+    why: 'AI Screen Time must never modify Claude Code or Codex files.',
     test: (code) =>
       [
         ...code.matchAll(

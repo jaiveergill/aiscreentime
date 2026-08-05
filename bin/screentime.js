@@ -52,9 +52,9 @@ if (fs.existsSync(compiled)) {
     stale = false;
   }
   if (stale && stripsTypes) {
-    if (process.env.LEVERAGE_QUIET !== '1') {
+    if (process.env.SCREENTIME_QUIET !== '1') {
       process.stderr.write(
-        '[2mleverage: dist/ is older than src/, running from source. Run `npm run build` to refresh it.[0m\n',
+        '[2mscreentime: dist/ is older than src/, running from source. Run `npm run build` to refresh it.[0m\n',
       );
     }
     entry = source;
@@ -65,7 +65,7 @@ if (fs.existsSync(compiled)) {
   entry = source;
 } else {
   console.error(
-    `Leverage needs Node 22.18+ to run from source, or a build.\n` +
+    `AI Screen Time needs Node 22.18+ to run from source, or a build.\n` +
       `You have ${process.versions.node}. Run "npm run build" or upgrade Node.`,
   );
   process.exit(1);

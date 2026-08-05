@@ -1,6 +1,6 @@
 # Threat model
 
-Leverage reads some of the most sensitive material on a developer's machine:
+AI Screen Time reads some of the most sensitive material on a developer's machine:
 complete transcripts of engineering work, including source code, credentials that
 were pasted into prompts, customer names, and unreleased product plans.
 
@@ -14,7 +14,7 @@ This document states what it protects, what it does not, and how.
 | --- | --- | --- |
 | Agent transcripts | `~/.claude/projects`, `$CODEX_HOME/sessions` | Very high — code, secrets, plans |
 | Source code and diffs | User repositories | Very high |
-| Derived index | `~/.leverage/leverage.db` | High — redacted excerpts, paths, metadata |
+| Derived index | `~/.screentime/screentime.db` | High — redacted excerpts, paths, metadata |
 | Task titles and instructions | The index | High — often name customers or products |
 | Repository names and paths | The index | Medium — identify employer and clients |
 | Aggregate metrics | The index | Low, but socially sensitive |
@@ -25,7 +25,7 @@ This document states what it protects, what it does not, and how.
 ## Trust boundaries
 
 ```
-   provider files ──read-only──▶ Leverage ──▶ ~/.leverage/leverage.db
+   provider files ──read-only──▶ screentime ──▶ ~/.screentime/screentime.db
                                     │
                                     ├──▶ 127.0.0.1 HTTP ──▶ the user's browser
                                     │
@@ -43,7 +43,7 @@ Three boundaries matter:
 
 ## Adversaries and mitigations
 
-### A1 — Leverage corrupts the agent's own data
+### A1 — The tool corrupts the agent's own data
 
 *Impact: catastrophic. A productivity tracker that eats your Claude Code history
 is worse than no tracker.*
@@ -116,7 +116,7 @@ with task metadata. That is disclosed in the settings panel before enabling.
   response.
 
 **Residual risk:** any local process running as the user can read the SQLite file
-directly. Leverage does not defend against a compromised local account — that is
+directly. It does not defend against a compromised local account — that is
 outside any single-user tool's reach.
 
 ### A5 — Prompt injection via transcript content
@@ -187,12 +187,12 @@ The product cannot stop someone lying, but it must not help:
 
 ---
 
-## What Leverage explicitly does not defend against
+## What it explicitly does not defend against
 
 - A compromised user account or a malicious local process.
 - Disk-level compromise. The database is not encrypted; it inherits the
   filesystem's protections.
-- Full-disk backups that include `~/.leverage/leverage.db`.
+- Full-disk backups that include `~/.screentime/screentime.db`.
 - A user deliberately misrepresenting their own output.
 - Complete secret redaction. It is best-effort, always.
 

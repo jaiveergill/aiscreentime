@@ -8,7 +8,7 @@ import type { EventKind, EventPayload, NormalizedEvent, ProviderId } from '../sr
 import { hashId } from '../src/core/util.ts';
 
 /** Disposable directory, removed by `cleanup`. */
-export function tmpDir(prefix = 'leverage-test-'): string {
+export function tmpDir(prefix = 'screentime-test-'): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 

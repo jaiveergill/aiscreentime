@@ -6,12 +6,46 @@ import { homedir } from 'node:os';
 import { MIGRATIONS } from './migrations.ts';
 import { log } from '../core/log.ts';
 
-export function leverageHome(): string {
-  return process.env.LEVERAGE_HOME ?? path.join(homedir(), '.leverage');
+/**
+ * Where the database and log live.
+ *
+ * The tool was called `leverage` before it was called `screentime`, so an
+ * existing install has its whole history under `~/.leverage`. Rather than
+ * silently starting empty — which reads as data loss — the old directory is
+ * moved across once, on first run, and only when the new one does not yet
+ * exist. `LEVERAGE_HOME` is still honoured so an explicit override does not
+ * break mid-upgrade.
+ */
+export function screentimeHome(): string {
+  const explicit = process.env.SCREENTIME_HOME ?? process.env.LEVERAGE_HOME;
+  if (explicit) return explicit;
+
+  const home = path.join(homedir(), '.screentime');
+  if (!fs.existsSync(home)) {
+    const legacy = path.join(homedir(), '.leverage');
+    if (fs.existsSync(legacy)) {
+      try {
+        fs.renameSync(legacy, home);
+        for (const [from, to] of [
+          ['leverage.db', 'screentime.db'],
+          ['leverage.log', 'screentime.log'],
+        ]) {
+          const src = path.join(home, from as string);
+          if (fs.existsSync(src)) fs.renameSync(src, path.join(home, to as string));
+        }
+        log.info('migrated data directory from ~/.leverage', { to: home });
+      } catch (err) {
+        // A failed move must not stop the tool from starting; the worst case is
+        // an empty history, not a crash.
+        log.warn('could not migrate ~/.leverage', { err: String(err) });
+      }
+    }
+  }
+  return home;
 }
 
 export interface OpenOptions {
-  /** Directory holding the database. Defaults to `~/.leverage`. */
+  /** Directory holding the database. Defaults to `~/.screentime`. */
   readonly dir?: string;
   readonly filename?: string;
   readonly readOnly?: boolean;
@@ -23,18 +57,42 @@ export interface OpenOptions {
  * Deliberately not an ORM. Queries live in `queries.ts`; this file owns only
  * connection lifecycle, pragmas, and migrations.
  */
+/**
+ * Adopt a `leverage.db` left by an older version of this tool.
+ *
+ * Runs for any directory, not just the default home, because `SCREENTIME_HOME`
+ * may point at an existing install. Opening a fresh empty database next to a
+ * populated old one is indistinguishable from data loss to the person looking
+ * at the screen. The WAL sidecars move too, or SQLite would read a stale tail.
+ */
+function adoptLegacyDb(dir: string, target: string, explicitFilename?: string): void {
+  if (explicitFilename || fs.existsSync(target)) return;
+  const legacy = path.join(dir, 'leverage.db');
+  if (!fs.existsSync(legacy)) return;
+  try {
+    for (const suffix of ['', '-wal', '-shm']) {
+      const from = `${legacy}${suffix}`;
+      if (fs.existsSync(from)) fs.renameSync(from, `${target}${suffix}`);
+    }
+    log.info('adopted leverage.db from a previous version', { dir });
+  } catch (err) {
+    log.warn('could not adopt leverage.db', { err: String(err) });
+  }
+}
+
 export class Db {
   readonly handle: DatabaseSync;
   readonly file: string;
   readonly dir: string;
 
   constructor(opts: OpenOptions = {}) {
-    this.dir = opts.dir ?? leverageHome();
+    this.dir = opts.dir ?? screentimeHome();
     // Owner-only: this database holds transcript excerpts, absolute repo paths
     // and task titles. On a shared machine the default umask would leave it
     // world-readable.
     fs.mkdirSync(this.dir, { recursive: true, mode: 0o700 });
-    this.file = path.join(this.dir, opts.filename ?? 'leverage.db');
+    this.file = path.join(this.dir, opts.filename ?? 'screentime.db');
+    adoptLegacyDb(this.dir, this.file, opts.filename);
     this.handle = new DatabaseSync(this.file, { readOnly: opts.readOnly ?? false });
     if (!opts.readOnly) {
       try {

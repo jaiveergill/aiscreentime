@@ -631,6 +631,12 @@ function handleEventMsg(
         h.recordsIgnored++;
         return;
       }
+      // `last_token_usage` is the delta for this turn; `total_token_usage` is
+      // the running session total. Summing the latter would multiply-count.
+      // Codex reports `input_tokens` already inclusive of `cached_input_tokens`
+      // (input + output == total_tokens), so unlike Claude it needs no
+      // adjustment — the cached figure is a breakdown, not an addend.
+      // `reasoning_output_tokens` is likewise already inside `output_tokens`.
       push('tokens.reported', undefined, {
         rawType: t,
         tokensIn: asNumber(last['input_tokens']) ?? 0,

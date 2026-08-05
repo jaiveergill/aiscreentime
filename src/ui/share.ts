@@ -98,7 +98,7 @@ export function renderShare(state: AppState): HTMLElement {
       if (!png) throw new Error('Could not encode the image.');
       const a = document.createElement('a');
       a.href = URL.createObjectURL(png);
-      a.download = `leverage-${state.day}-${opts.variant}@${scale}x.png`;
+      a.download = `screentime-${state.day}-${opts.variant}@${scale}x.png`;
       a.click();
       URL.revokeObjectURL(a.href);
       mount(status, h('span', { style: { color: 'var(--verified)' } }, `Saved ${w}×${hpx}.`));
@@ -112,7 +112,7 @@ export function renderShare(state: AppState): HTMLElement {
     const blob = new Blob([currentSvg], { type: 'image/svg+xml' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `leverage-${state.day}-${opts.variant}.svg`;
+    a.download = `screentime-${state.day}-${opts.variant}.svg`;
     a.click();
     URL.revokeObjectURL(a.href);
   };

@@ -422,9 +422,18 @@ export function extractEvidence(seg: TaskSegment, repoRoot?: string): TaskEviden
   let retries = 0;
   let toolCalls = 0;
   let researchArtifacts = 0;
+  let tokensIn = 0;
+  let tokensOut = 0;
+  let tokensCacheRead = 0;
   const subagents = new Set<string>();
 
   for (const e of seg.events) {
+    // Token counts ride on their own event kind, so accumulate before the
+    // switch rather than adding a case that would fall through the rest.
+    tokensIn += e.payload.tokensIn ?? 0;
+    tokensOut += e.payload.tokensOut ?? 0;
+    tokensCacheRead += e.payload.tokensCacheRead ?? 0;
+
     switch (e.kind) {
       case 'test.run':
         testsRun++;
@@ -541,6 +550,9 @@ export function extractEvidence(seg: TaskSegment, repoRoot?: string): TaskEviden
     researchArtifacts,
     filesStillPresent: 0,
     filesMissing: 0,
+    tokensIn,
+    tokensOut,
+    tokensCacheRead,
   };
 }
 

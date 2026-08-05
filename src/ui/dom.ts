@@ -137,6 +137,21 @@ export function fmtBytes(n: number): string {
   return `${(n / 1024 ** 3).toFixed(2)} GB`;
 }
 
+/**
+ * Compact count for large tallies. Token totals run to hundreds of millions,
+ * where the exact digits carry no meaning and the magnitude is the whole point.
+ *
+ * Deliberately duplicated from `core/util.ts`: this bundle imports nothing from
+ * `core/` so it stays self-contained. Keep the two in step.
+ */
+export function fmtCount(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '0';
+  if (n < 1_000) return String(Math.round(n));
+  if (n < 1_000_000) return `${(n / 1_000).toFixed(n < 10_000 ? 1 : 0)}K`;
+  if (n < 1_000_000_000) return `${(n / 1_000_000).toFixed(n < 10_000_000 ? 1 : 0)}M`;
+  return `${(n / 1_000_000_000).toFixed(1)}B`;
+}
+
 export function todayKey(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

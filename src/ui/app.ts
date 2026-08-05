@@ -2,6 +2,7 @@ import {
   api,
   confidence,
   fmtDayLong,
+  fmtCount,
   fmtDayShort,
   fmtDuration,
   fmtHours,
@@ -108,6 +109,9 @@ export interface DayMetrics {
   agentAutonomy: number;
   peakConcurrency: number;
   meanConcurrency: number;
+  tokensIn: number;
+  tokensOut: number;
+  tokensCacheRead: number;
   concurrentAgentHours: number;
   taskCount: number;
   statusCounts: Record<string, number>;
@@ -426,7 +430,7 @@ function topbar(): HTMLElement {
             const next = document.documentElement.dataset['theme'] === 'light' ? 'dark' : 'light';
             document.documentElement.dataset['theme'] = next;
             try {
-              localStorage.setItem('leverage-theme', next);
+              localStorage.setItem('screentime-theme', next);
             } catch {
               /* storage unavailable */
             }
@@ -786,6 +790,20 @@ function statusBreakdown(m: DayMetrics): HTMLElement {
       h('dd', {}, `${Math.round(m.agentAutonomy * 100)}%`, ' ', tag('inferred')),
       h('dt', {}, 'parallel'),
       h('dd', {}, `${Math.round(m.parallelismLeverage * 100)}%`, ' ', tag('derived')),
+      // Tokens are the only figures here the providers hand us outright, so
+      // they carry 'measured' rather than 'derived' or 'inferred'.
+      h('dt', {}, 'tokens in'),
+      h('dd', {}, fmtCount(m.tokensIn), ' ', tag('measured')),
+      h('dt', {}, 'tokens out'),
+      h('dd', {}, fmtCount(m.tokensOut), ' ', tag('measured')),
+      h('dt', {}, 'cached'),
+      h(
+        'dd',
+        {},
+        `${m.tokensIn > 0 ? Math.round((m.tokensCacheRead / m.tokensIn) * 100) : 0}%`,
+        ' ',
+        tag('measured'),
+      ),
     ),
   );
 }
@@ -1085,7 +1103,7 @@ function render(): void {
 /* ------------------------------------------------------------------ */
 
 try {
-  const saved = localStorage.getItem('leverage-theme');
+  const saved = localStorage.getItem('screentime-theme');
   if (saved === 'light' || saved === 'dark') document.documentElement.dataset['theme'] = saved;
 } catch {
   /* storage unavailable */

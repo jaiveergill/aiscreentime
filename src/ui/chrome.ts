@@ -119,7 +119,7 @@ export function sidebar(active: string, go: (hash: string) => void): HTMLElement
   return h(
     'aside',
     { class: 'sidebar' },
-    h('div', { class: 'side-brand' }, ICONS.pulse(), 'Leverage'),
+    h('div', { class: 'side-brand' }, ICONS.pulse(), 'AI Screen Time'),
     h('nav', { class: 'side-nav', 'aria-label': 'Sections' }, ...items),
     h(
       'div',

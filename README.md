@@ -1,6 +1,6 @@
-# Leverage
+# AI Screen Time
 
-**A personal AI engineering leverage tracker.** It reads your Claude Code and Codex
+**Your AI screen time, for engineering.** It reads your Claude Code and Codex
 sessions, reconstructs the engineering tasks you actually completed, and estimates
 how long each one would have taken a competent engineer working without AI.
 
@@ -20,7 +20,7 @@ for built-in type stripping. No other runtime, no database server, no account,
 no API key.
 
 ```bash
-npx @jaiveergill/leverage
+npx aiscreentime
 ```
 
 That is the whole install. It scans your local Claude Code and Codex data, then
@@ -29,41 +29,41 @@ opens the dashboard.
 To keep it around:
 
 ```bash
-npm install -g @jaiveergill/leverage
-leverage
+npm install -g aiscreentime
+screentime
 ```
 
 From source:
 
 ```bash
-git clone https://github.com/jaiveergill/leverage.git && cd leverage
+git clone https://github.com/jaiveergill/aiscreentime.git && cd aiscreentime
 npm install && npm run build && npm link
-leverage
+screentime
 ```
 
 ### Commands
 
 | Command | What it does |
 | --- | --- |
-| `leverage run` | Open the dashboard now, scan in the background |
-| `leverage` / `leverage start` | Scan local agent data, then open the dashboard |
-| `leverage serve` | Dashboard only, no scan |
-| `leverage ingest [--days N]` | Scan and update the index |
-| `leverage today` | Today's summary in the terminal |
-| `leverage day 2026-05-12` | A specific day |
-| `leverage tasks [day]` | List reconstructed tasks |
-| `leverage share <day> [--variant timeline] [--out card.svg]` | Write a share card |
-| `leverage doctor` | Detected providers, parser health, watched paths |
-| `leverage methodology` | The benchmark definition and its sources |
-| `leverage demo` | Load a clearly-labelled synthetic dataset |
-| `leverage reset [--all]` | Delete derived data (`--all` also deletes imported events) |
+| `screentime run` | Open the dashboard now, scan in the background |
+| `screentime` / `screentime start` | Scan local agent data, then open the dashboard |
+| `screentime serve` | Dashboard only, no scan |
+| `screentime ingest [--days N]` | Scan and update the index |
+| `screentime today` | Today's summary in the terminal |
+| `screentime day 2026-05-12` | A specific day |
+| `screentime tasks [day]` | List reconstructed tasks |
+| `screentime share <day> [--variant timeline] [--out card.svg]` | Write a share card |
+| `screentime doctor` | Detected providers, parser health, watched paths |
+| `screentime methodology` | The benchmark definition and its sources |
+| `screentime demo` | Load a clearly-labelled synthetic dataset |
+| `screentime reset [--all]` | Delete derived data (`--all` also deletes imported events) |
 
 Useful flags: `--port`, `--json`, `--no-open`.
 
 ### No Claude Code or Codex installed?
 
-`leverage demo` loads a synthetic dataset that is labelled as such everywhere it
-appears. `leverage reset --all` removes it.
+`screentime demo` loads a synthetic dataset that is labelled as such everywhere it
+appears. `screentime reset --all` removes it.
 
 ---
 
@@ -119,8 +119,8 @@ Architecture and module boundaries: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 ## Privacy
 
 - **Everything is local.** No account, no API key, no cloud sync, no telemetry, no
-  crash reporting. The database is a single SQLite file at `~/.leverage/leverage.db`.
-- **Read-only.** Leverage never modifies, moves, or deletes a Claude Code, Codex,
+  crash reporting. The database is a single SQLite file at `~/.screentime/screentime.db`.
+- **Read-only.** It never modifies, moves, or deletes a Claude Code, Codex,
   or Git file. Git access goes through one module with a read-only allowlist, and
   the linter enforces both rules.
 - **Least privilege.** Only `~/.claude/projects` and `$CODEX_HOME/sessions` are
@@ -154,7 +154,7 @@ npm run check          # format:check + lint + typecheck + all tests
 ```
 
 Stress fixtures are generated at test time, never committed. Scale them with
-`LEVERAGE_STRESS_SESSIONS` and `LEVERAGE_STRESS_RECORDS`.
+`SCREENTIME_STRESS_SESSIONS` and `SCREENTIME_STRESS_RECORDS`.
 
 ### Adding a provider
 

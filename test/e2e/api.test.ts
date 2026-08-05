@@ -48,12 +48,12 @@ function rawGet(p: string, host: string): Promise<{ status: number; body: string
 }
 
 before(async () => {
-  dir = tmpDir('leverage-api-');
+  dir = tmpDir('screentime-api-');
   // Point the collectors at empty directories. A test that reads the
   // developer's real ~/.claude and ~/.codex is not a test — it is slow,
   // non-deterministic, and its result depends on whose machine it runs on.
-  emptyClaude = tmpDir('leverage-api-claude-');
-  emptyCodex = tmpDir('leverage-api-codex-');
+  emptyClaude = tmpDir('screentime-api-claude-');
+  emptyCodex = tmpDir('screentime-api-codex-');
   prevClaude = process.env['CLAUDE_CONFIG_DIR'];
   prevCodex = process.env['CODEX_HOME'];
   process.env['CLAUDE_CONFIG_DIR'] = emptyClaude;
@@ -92,7 +92,7 @@ describe('API surface', () => {
     assert.ok((b['eventCount'] as number) > 0);
     assert.ok((b['taskCount'] as number) > 0);
     assert.ok(String(b['benchmarkVersion']).startsWith('v'));
-    assert.ok(String(b['dbPath']).endsWith('leverage.db'));
+    assert.ok(String(b['dbPath']).endsWith('screentime.db'));
   });
 
   test('the day endpoint returns metrics plus fully-formed tasks', async () => {
@@ -230,7 +230,7 @@ describe('API surface', () => {
       eventKinds: { kind: string; n: number }[];
       note: string;
     };
-    assert.ok(b.dbPath.endsWith('leverage.db'));
+    assert.ok(b.dbPath.endsWith('screentime.db'));
     assert.ok(b.eventKinds.length > 0);
     assert.ok(b.note.includes('this machine'));
   });

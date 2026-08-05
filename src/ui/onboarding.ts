@@ -81,7 +81,7 @@ export function renderOnboarding(state: AppState, onDone: () => Promise<void>): 
     h(
       'section',
       { style: { padding: '72px 0 40px' } },
-      h('div', { class: 'brand', style: { marginBottom: '28px' } }, 'LEVERAGE'),
+      h('div', { class: 'brand', style: { marginBottom: '28px' } }, 'AI SCREEN TIME'),
       h(
         'h1',
         {
@@ -99,7 +99,7 @@ export function renderOnboarding(state: AppState, onDone: () => Promise<void>): 
       h(
         'p',
         { class: 'prose', style: { fontSize: '16px' } },
-        'Leverage reads your Claude Code and Codex sessions and estimates how long each finished task would have taken without AI. ',
+        'AI Screen Time reads your Claude Code and Codex sessions and estimates how long each finished task would have taken without AI. ',
         h('strong', {}, 'It counts what survived, not what was generated.'),
       ),
     ),
@@ -153,7 +153,7 @@ export function renderOnboarding(state: AppState, onDone: () => Promise<void>): 
               ' / ',
               h('code', {}, 'CODEX_HOME'),
               ' if they live elsewhere. Or try ',
-              h('code', {}, 'leverage demo'),
+              h('code', {}, 'screentime demo'),
               '.',
             ),
           ),
@@ -235,7 +235,7 @@ export function renderOnboarding(state: AppState, onDone: () => Promise<void>): 
       h(
         'p',
         { class: 'faint', style: { fontSize: '12px', marginTop: '20px' } },
-        'Afterwards, calibrate a task or two — telling Leverage how long one really would have taken you sharpens every later estimate.',
+        'Afterwards, calibrate a task or two — telling it how long one really would have taken you sharpens every later estimate.',
       ),
       void api,
     ),

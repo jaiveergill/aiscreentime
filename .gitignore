@@ -8,13 +8,13 @@ public/
 
 *.log
 .DS_Store
-.leverage-test-home/
+.screentime-test-home/
 .gstack/
 
 # npm pack output
 *.tgz
 
-# Local databases — LEVERAGE_HOME can point at the repo during development.
+# Local databases — SCREENTIME_HOME can point at the repo during development.
 *.db
 *.db-wal
 *.db-shm
