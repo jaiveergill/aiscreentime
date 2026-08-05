@@ -221,6 +221,33 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX idx_commits_ts ON git_commits(ts);
     `,
   },
+  {
+    // Estimate modes are gone. Each was the same number rescaled by a constant,
+    // so the only thing choosing between them changed was how flattering the
+    // headline looked. Both tables are derived, so they are dropped and rebuilt
+    // rather than migrated row by row.
+    name: '0002-drop-estimate-modes',
+    up: `
+      DROP TABLE estimates;
+      DROP TABLE day_metrics;
+
+      CREATE TABLE estimates (
+        task_id      TEXT NOT NULL,
+        benchmark_version TEXT NOT NULL,
+        payload      TEXT NOT NULL,
+        computed_at  INTEGER NOT NULL,
+        PRIMARY KEY (task_id, benchmark_version)
+      );
+
+      CREATE TABLE day_metrics (
+        day_key      TEXT NOT NULL,
+        benchmark_version TEXT NOT NULL,
+        payload      TEXT NOT NULL,
+        computed_at  INTEGER NOT NULL,
+        PRIMARY KEY (day_key, benchmark_version)
+      );
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import type { EstimateMode, TaskCategory, TaskStatus } from '../core/types.ts';
+import type { TaskCategory, TaskStatus } from '../core/types.ts';
 import { HOUR, dayKey, endOfDay, startOfDay } from '../core/util.ts';
 import { log } from '../core/log.ts';
 import { Db } from '../store/db.ts';
-import { DEFAULT_SETTINGS, loadSettings, saveSettings, type Settings } from '../core/config.ts';
+import { loadSettings, saveSettings, type Settings } from '../core/config.ts';
 import { ClaudeCodeCollector } from '../collectors/claude/index.ts';
 import { CodexCollector } from '../collectors/codex/index.ts';
 import type { Collector } from '../collectors/types.ts';
@@ -57,11 +57,34 @@ export interface ApiContext {
 
 export function createContext(dbDir?: string): ApiContext {
   const db = new Db(dbDir ? { dir: dbDir } : {});
-  return {
+  const ctx: ApiContext = {
     db,
     collectors: [new ClaudeCodeCollector(), new CodexCollector()],
     state: { ingesting: false },
   };
+  rebuildIfStale(ctx);
+  return ctx;
+}
+
+/**
+ * Recompute when the derived tables cannot answer for the tasks already stored
+ * — a migration that dropped them, or a benchmark version bump. Without this a
+ * day would render as zeros until the next scan happened to find new events,
+ * which reads as data loss.
+ */
+function rebuildIfStale(ctx: ApiContext): void {
+  const tasks = (ctx.db.handle.prepare('SELECT COUNT(*) n FROM tasks').get() as { n: number }).n;
+  if (tasks === 0) return;
+  const estimates = (
+    ctx.db.handle
+      .prepare('SELECT COUNT(*) n FROM estimates WHERE benchmark_version = ?')
+      .get(BENCHMARK_VERSION) as { n: number }
+  ).n;
+  if (estimates > 0) return;
+  log.info('derived data is stale; rebuilding', { tasks });
+  const settings = loadSettings(ctx.db);
+  const res = computeDerived(ctx.db, { settings, from: 0 });
+  for (const d of res.daysTouched) computeDayMetrics(ctx.db, d, settings);
 }
 
 export interface ApiResponse {
@@ -89,7 +112,6 @@ export async function handleApi(
 ): Promise<ApiResponse> {
   const p = url.pathname;
   const settings = loadSettings(ctx.db);
-  const mode = (url.searchParams.get('mode') as EstimateMode) || settings.mode;
 
   // ---- status & onboarding ---------------------------------------------
   if (p === '/api/status' && method === 'GET') {
@@ -133,45 +155,19 @@ export async function handleApi(
     return json({ ok: true, lastIngest: ctx.state.lastIngest, lastCompute: ctx.state.lastCompute });
   }
 
-  if (p === '/api/ingest/cancel' && method === 'POST') {
-    ctx.state.abort?.abort();
-    return json({ ok: true });
-  }
-
-  if (p === '/api/compute' && method === 'POST') {
-    const b = (body ?? {}) as { days?: number };
-    const from = b.days ? Date.now() - b.days * 24 * HOUR : 0;
-    const res = computeDerived(ctx.db, { settings, from });
-    for (const d of res.daysTouched) {
-      for (const m of ['conservative', 'balanced', 'upper-range'] as const) {
-        computeDayMetrics(ctx.db, d, m, settings);
-      }
-    }
-    ctx.state.lastCompute = {
-      at: Date.now(),
-      tasks: res.tasksBuilt,
-      rejected: res.nonEngineeringRejected,
-      durationMs: res.durationMs,
-    };
-    return json(res);
-  }
-
   // ---- day view ----------------------------------------------------------
   if (p.startsWith('/api/day/') && method === 'GET') {
     const day = p.slice('/api/day/'.length);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return fail('Invalid day.');
-    const metrics =
-      loadDayMetrics(ctx.db, day, mode) ?? computeDayMetrics(ctx.db, day, mode, settings);
+    const metrics = loadDayMetrics(ctx.db, day) ?? computeDayMetrics(ctx.db, day, settings);
     const tasks = loadTasksForDay(ctx.db, day);
     const estimates = loadEstimates(
       ctx.db,
       tasks.map((t) => t.taskId),
-      mode,
     );
     const repos = repoNameMap(ctx.db);
     return json({
       day,
-      mode,
       metrics,
       repos,
       tasks: tasks.map((t) => ({
@@ -272,7 +268,7 @@ export async function handleApi(
 
   if (p === '/api/trend' && method === 'GET') {
     const days = Number(url.searchParams.get('days') ?? 14);
-    return json({ mode, trend: trend(ctx.db, Math.min(120, Math.max(2, days)), mode, settings) });
+    return json({ trend: trend(ctx.db, Math.min(120, Math.max(2, days)), settings) });
   }
 
   // ---- task detail -------------------------------------------------------
@@ -280,10 +276,7 @@ export async function handleApi(
     const taskId = p.slice('/api/task/'.length);
     const task = loadTask(ctx.db, taskId);
     if (!task) return fail('Task not found.', 404);
-    const estimates: Record<string, unknown> = {};
-    for (const m of ['conservative', 'balanced', 'upper-range'] as const) {
-      estimates[m] = loadEstimates(ctx.db, [taskId], m).get(taskId) ?? null;
-    }
+    const estimate = loadEstimates(ctx.db, [taskId]).get(taskId) ?? null;
     const eventRows = ctx.db.handle
       .prepare(
         `SELECT e.* FROM events e JOIN task_events te ON te.event_id = e.id
@@ -320,7 +313,7 @@ export async function handleApi(
         categoryLabel: CATEGORY_LABELS[task.category],
         repoName: task.repoId ? repos[task.repoId] : null,
       },
-      estimates,
+      estimate,
       events,
       sessions: sessions.map((s) => ({
         sessionId: String(s['session_id']),
@@ -390,7 +383,7 @@ export async function handleApi(
     };
     if (typeof b.userHours !== 'number' || !(b.userHours >= 0))
       return fail('userHours must be a number.');
-    const est = loadEstimates(ctx.db, [taskId], 'balanced').get(taskId);
+    const est = loadEstimates(ctx.db, [taskId]).get(taskId);
     recordCalibration(ctx.db, {
       taskId,
       category: task.category,
@@ -405,36 +398,12 @@ export async function handleApi(
     return json({ ok: true, calibration: calibrationSummary(ctx.db) });
   }
 
-  if (p === '/api/tasks/merge' && method === 'POST') {
-    const b = (body ?? {}) as { taskIds?: string[]; title?: string };
-    if (!b.taskIds || b.taskIds.length < 2) return fail('Provide at least two task ids.');
-    // Merging is expressed as overrides: the first task absorbs the others,
-    // which are excluded. This keeps the derived pipeline the single source of
-    // truth and keeps the operation reversible.
-    const [keep, ...rest] = b.taskIds;
-    const stmt = ctx.db.handle.prepare(
-      `INSERT INTO task_overrides (task_id, excluded, note, updated_at) VALUES (?,1,?,?)
-       ON CONFLICT(task_id) DO UPDATE SET excluded=1, note=excluded.note, updated_at=excluded.updated_at`,
-    );
-    for (const id of rest) stmt.run(id, `merged into ${keep}`, Date.now());
-    if (b.title && keep) {
-      ctx.db.handle
-        .prepare(
-          `INSERT INTO task_overrides (task_id, title, updated_at) VALUES (?,?,?)
-           ON CONFLICT(task_id) DO UPDATE SET title=excluded.title, updated_at=excluded.updated_at`,
-        )
-        .run(keep, b.title, Date.now());
-    }
-    recomputeAround(ctx, settings, 0, Date.now());
-    return json({ ok: true });
-  }
-
   // ---- share -------------------------------------------------------------
   if (p.startsWith('/api/share/') && method === 'GET') {
     const day = p.slice('/api/share/'.length).replace(/\.svg$/, '');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return fail('Invalid day.');
-    const opts = cardOptionsFromQuery(url, settings);
-    const data = buildCardData(ctx, day, mode, settings, opts);
+    const opts = cardOptionsFromQuery(url);
+    const data = buildCardData(ctx, day, settings, opts);
     const svg = renderCard(data, opts);
     return { status: 200, body: null, contentType: 'image/svg+xml; charset=utf-8', raw: svg };
   }
@@ -442,8 +411,8 @@ export async function handleApi(
   if (p.startsWith('/api/share-preview/') && method === 'GET') {
     const day = p.slice('/api/share-preview/'.length);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return fail('Invalid day.');
-    const opts = cardOptionsFromQuery(url, settings);
-    const data = buildCardData(ctx, day, mode, settings, opts);
+    const opts = cardOptionsFromQuery(url);
+    const data = buildCardData(ctx, day, settings, opts);
     return json({ exposure: describeExposure(opts, data), options: opts });
   }
 
@@ -459,7 +428,6 @@ export async function handleApi(
     const detections = await Promise.all(ctx.collectors.map((c) => c.detect()));
     return json({
       watchedDirs: ctx.collectors.flatMap((c) => c.dataDirs()),
-      extraWatchDirs: settings.extraWatchDirs,
       detections,
       health: health.map((h) => ({
         provider: String(h['provider']),
@@ -625,55 +593,6 @@ export async function handleApi(
     });
   }
 
-  if (p === '/api/import' && method === 'POST') {
-    const b = (body ?? {}) as {
-      overrides?: Record<string, unknown>[];
-      calibrations?: Record<string, unknown>[];
-    };
-    let n = 0;
-    ctx.db.transaction(() => {
-      for (const o of b.overrides ?? []) {
-        ctx.db.handle
-          .prepare(
-            `INSERT OR REPLACE INTO task_overrides (task_id, title, category, status, excluded, hours, note, updated_at)
-             VALUES (?,?,?,?,?,?,?,?)`,
-          )
-          .run(
-            String(o['task_id']),
-            sqlVal(o['title']),
-            sqlVal(o['category']),
-            sqlVal(o['status']),
-            sqlVal(o['excluded']),
-            sqlVal(o['hours']),
-            sqlVal(o['note']),
-            Date.now(),
-          );
-        n++;
-      }
-      for (const c of b.calibrations ?? []) {
-        ctx.db.handle
-          .prepare(
-            `INSERT INTO calibrations (task_id, category, estimated_hours, user_hours, familiarity, usable_fraction, rewrote, peer_comparison, created_at)
-             VALUES (?,?,?,?,?,?,?,?,?)`,
-          )
-          .run(
-            String(c['task_id']),
-            String(c['category']),
-            Number(c['estimated_hours']) || 0,
-            Number(c['user_hours']) || 0,
-            sqlVal(c['familiarity']),
-            sqlVal(c['usable_fraction']),
-            sqlVal(c['rewrote']),
-            sqlVal(c['peer_comparison']),
-            Date.now(),
-          );
-        n++;
-      }
-    });
-    recomputeAround(ctx, settings, 0, Date.now());
-    return json({ ok: true, imported: n });
-  }
-
   // ---- semantic ------------------------------------------------------------
   if (p === '/api/semantic/run' && method === 'POST') {
     if (!settings.semanticEnabled) return fail('Semantic analysis is disabled.', 409);
@@ -687,11 +606,6 @@ export async function handleApi(
   if (p === '/api/onboard/complete' && method === 'POST') {
     saveSettings(ctx.db, { onboarded: true, ...(body as Partial<Settings>) });
     return json({ ok: true });
-  }
-
-  if (p === '/api/reset-settings' && method === 'POST') {
-    ctx.db.setConfig('settings', DEFAULT_SETTINGS);
-    return json(DEFAULT_SETTINGS);
   }
 
   return fail('Not found.', 404);
@@ -733,11 +647,7 @@ export async function runIngest(
       const from = res.touchedFrom !== undefined ? res.touchedFrom - DAY_MS : 0;
       const to = res.touchedTo !== undefined ? res.touchedTo + DAY_MS : Date.now();
       const c = computeDerived(ctx.db, { settings, from, to });
-      for (const d of c.daysTouched) {
-        for (const m of ['conservative', 'balanced', 'upper-range'] as const) {
-          computeDayMetrics(ctx.db, d, m, settings);
-        }
-      }
+      for (const d of c.daysTouched) computeDayMetrics(ctx.db, d, settings);
       ctx.state.lastCompute = {
         at: Date.now(),
         tasks: c.tasksBuilt,
@@ -797,11 +707,7 @@ export function startAutoRefresh(ctx: ApiContext): () => void {
 
 function recomputeAround(ctx: ApiContext, settings: Settings, from: number, to: number): void {
   const res = computeDerived(ctx.db, { settings, from, to });
-  for (const d of res.daysTouched) {
-    for (const m of ['conservative', 'balanced', 'upper-range'] as const) {
-      computeDayMetrics(ctx.db, d, m, settings);
-    }
-  }
+  for (const d of res.daysTouched) computeDayMetrics(ctx.db, d, settings);
 }
 
 function repoNameMap(db: Db): Record<string, string> {
@@ -815,38 +721,39 @@ function repoNameMap(db: Db): Record<string, string> {
   return out;
 }
 
-function cardOptionsFromQuery(url: URL, settings: Settings): CardOptions {
+function cardOptionsFromQuery(url: URL): CardOptions {
   const variant = (url.searchParams.get('variant') as CardVariant) || 'headline';
+  // `Number('abc')` is NaN, which `??` does not catch — an unvalidated `w`
+  // would reach the SVG as width="NaN" and render nothing.
+  const dim = (key: string): number | undefined => {
+    const raw = url.searchParams.get(key);
+    if (raw === null) return undefined;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? Math.min(4000, Math.trunc(n)) : undefined;
+  };
+  const width = dim('w');
+  const height = dim('h');
   return {
     variant: ['headline', 'timeline', 'projects', 'weekly'].includes(variant)
       ? variant
       : 'headline',
     theme: url.searchParams.get('theme') === 'light' ? 'light' : 'dark',
     // Aliases are the default; revealing is an explicit opt-in per export.
-    revealProjects:
-      url.searchParams.get('revealProjects') === '1' && !settings.shareUseAliases
-        ? true
-        : url.searchParams.get('revealProjects') === '1',
+    revealProjects: url.searchParams.get('revealProjects') === '1',
     revealTaskTitles: url.searchParams.get('revealTaskTitles') === '1',
-    ...(url.searchParams.get('w') ? { width: Number(url.searchParams.get('w')) } : {}),
-    ...(url.searchParams.get('h') ? { height: Number(url.searchParams.get('h')) } : {}),
+    ...(width !== undefined ? { width } : {}),
+    ...(height !== undefined ? { height } : {}),
   };
 }
 
-function buildCardData(
-  ctx: ApiContext,
-  day: string,
-  mode: EstimateMode,
-  settings: Settings,
-  opts: CardOptions,
-) {
-  const metrics = loadDayMetrics(ctx.db, day, mode) ?? emptyDayMetrics(day, mode);
+function buildCardData(ctx: ApiContext, day: string, settings: Settings, opts: CardOptions) {
+  const metrics = loadDayMetrics(ctx.db, day) ?? emptyDayMetrics(day);
   const tasks = loadTasksForDay(ctx.db, day).filter((t) => !t.excluded);
   const events = loadEvents(ctx.db, startOfDay(day), endOfDay(day), settings);
   const steer = computeSteering(events, STEERING_BALANCED);
   const conc = computeConcurrency(computeAgentIntervals(events));
   const repoNames = repoNameMap(ctx.db);
-  const weekly = trend(ctx.db, 7, mode, settings).map((d) => ({
+  const weekly = trend(ctx.db, 7, settings).map((d) => ({
     day: d.day,
     verifiedHours: d.verifiedHours,
     steeringHours: d.steeringHours,
@@ -861,15 +768,6 @@ function buildCardData(
     steeringIntervals: steer.intervals,
     weekly,
   };
-}
-
-/** Coerce an untrusted imported value into something SQLite accepts. */
-function sqlVal(v: unknown): string | number | null {
-  if (v === null || v === undefined) return null;
-  if (typeof v === 'number' && Number.isFinite(v)) return v;
-  if (typeof v === 'boolean') return v ? 1 : 0;
-  if (typeof v === 'string') return v.slice(0, 4000);
-  return null;
 }
 
 function safeParse(v: unknown): unknown {
@@ -887,8 +785,11 @@ export function readStaticFile(
 ): { body: Buffer; type: string } | null {
   const clean = urlPath === '/' ? '/index.html' : urlPath;
   // Path traversal guard: resolve, then require the result to stay under root.
-  const resolved = path.resolve(root, `.${clean}`);
-  if (!resolved.startsWith(path.resolve(root))) return null;
+  // The separator matters — a bare `startsWith` would also accept a sibling
+  // directory whose name merely begins with root (`/app/public` vs `/app/publicX`).
+  const base = path.resolve(root);
+  const resolved = path.resolve(base, `.${clean}`);
+  if (resolved !== base && !resolved.startsWith(base + path.sep)) return null;
   if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) return null;
   const ext = path.extname(resolved);
   const type =

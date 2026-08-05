@@ -1,6 +1,5 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import path from 'node:path';
 
 import { hashId } from '../core/util.ts';
 import { log } from '../core/log.ts';
@@ -12,18 +11,7 @@ import { log } from '../core/log.ts';
  * no `add`, `commit`, `checkout`, `stash`, `gc`, or config writes. The command
  * allowlist below is enforced at the single choke point `git()`.
  */
-const ALLOWED_SUBCOMMANDS = new Set([
-  'rev-parse',
-  'log',
-  'status',
-  'diff',
-  'show',
-  'ls-files',
-  'worktree',
-  'config',
-  'cat-file',
-  'name-rev',
-]);
+const ALLOWED_SUBCOMMANDS = new Set(['rev-parse', 'log']);
 
 export interface GitCommit {
   readonly sha: string;
@@ -42,12 +30,25 @@ export interface GitCommit {
   readonly paths: readonly string[];
 }
 
-export interface GitStatus {
-  readonly clean: boolean;
-  readonly modified: readonly string[];
-  readonly untracked: readonly string[];
-  readonly staged: readonly string[];
-}
+/**
+ * Config overrides applied to every invocation.
+ *
+ * We run against repositories the user merely pointed an agent at, so the
+ * repo-local `.git/config` and `.gitattributes` are attacker-controlled input.
+ * Git has several config keys that turn a read-only query into command
+ * execution — `core.fsmonitor`, `diff.external`, and `*.textconv` filters are
+ * the usual ones — so they are neutralised here rather than trusted.
+ */
+const SAFE_CONFIG = [
+  '-c',
+  'core.fsmonitor=',
+  '-c',
+  'core.hooksPath=/dev/null',
+  '-c',
+  'diff.external=',
+  '-c',
+  'protocol.ext.allow=never',
+];
 
 function git(root: string, args: string[], timeoutMs = 10_000): string | null {
   const sub = args[0];
@@ -55,17 +56,21 @@ function git(root: string, args: string[], timeoutMs = 10_000): string | null {
     log.error('blocked non-readonly git subcommand', { sub });
     return null;
   }
-  // `git config` is allowlisted only for reads.
-  if (sub === 'config' && !args.includes('--get')) return null;
-  // `git worktree` is allowlisted only for `list`.
-  if (sub === 'worktree' && args[1] !== 'list') return null;
 
   try {
-    const res = spawnSync('git', ['-C', root, ...args], {
+    const res = spawnSync('git', [...SAFE_CONFIG, '-C', root, ...args], {
       encoding: 'utf8',
       timeout: timeoutMs,
       maxBuffer: 32 * 1024 * 1024,
-      env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' },
+      env: {
+        ...process.env,
+        GIT_OPTIONAL_LOCKS: '0',
+        GIT_TERMINAL_PROMPT: '0',
+        // Ignore machine- and user-level git config; only the flags above apply.
+        GIT_CONFIG_NOSYSTEM: '1',
+        GIT_CONFIG_GLOBAL: '/dev/null',
+        GIT_ATTR_NOSYSTEM: '1',
+      },
     });
     if (res.error || res.status !== 0) return null;
     return res.stdout;
@@ -78,59 +83,6 @@ function git(root: string, args: string[], timeoutMs = 10_000): string | null {
 export function isGitRepo(root: string): boolean {
   if (!fs.existsSync(root)) return false;
   return git(root, ['rev-parse', '--is-inside-work-tree'])?.trim() === 'true';
-}
-
-export function repoRoot(dir: string): string | null {
-  const out = git(dir, ['rev-parse', '--show-toplevel']);
-  return out ? out.trim() : null;
-}
-
-/** Hash of the remote URL. The URL itself is never stored or exported. */
-export function remoteUrlHash(root: string): string | undefined {
-  const out = git(root, ['config', '--get', 'remote.origin.url']);
-  if (!out) return undefined;
-  return hashId('remote', out.trim());
-}
-
-export function currentBranch(root: string): string | undefined {
-  const out = git(root, ['rev-parse', '--abbrev-ref', 'HEAD']);
-  return out ? out.trim() : undefined;
-}
-
-export function listWorktrees(root: string): string[] {
-  const out = git(root, ['worktree', 'list', '--porcelain']);
-  if (!out) return [];
-  const paths: string[] = [];
-  for (const line of out.split('\n')) {
-    const m = /^worktree (.+)$/.exec(line);
-    if (m?.[1]) paths.push(m[1]);
-  }
-  return paths;
-}
-
-export function status(root: string): GitStatus {
-  const out = git(root, ['status', '--porcelain=v1', '--untracked-files=normal']);
-  if (out === null) return { clean: true, modified: [], untracked: [], staged: [] };
-  const modified: string[] = [];
-  const untracked: string[] = [];
-  const staged: string[] = [];
-  for (const line of out.split('\n')) {
-    if (line.length < 4) continue;
-    const x = line[0] ?? ' ';
-    const y = line[1] ?? ' ';
-    const file = line.slice(3).trim();
-    if (x === '?' && y === '?') untracked.push(file);
-    else {
-      if (x !== ' ') staged.push(file);
-      if (y !== ' ') modified.push(file);
-    }
-  }
-  return {
-    clean: modified.length === 0 && untracked.length === 0 && staged.length === 0,
-    modified,
-    untracked,
-    staged,
-  };
 }
 
 /**
@@ -192,41 +144,4 @@ export function commitsInRange(root: string, sinceMs: number, untilMs: number): 
     });
   }
   return commits;
-}
-
-/** Which of these paths still exist in the working tree right now? */
-export function pathsExist(
-  root: string,
-  paths: readonly string[],
-): { present: string[]; missing: string[] } {
-  const present: string[] = [];
-  const missing: string[] = [];
-  for (const p of paths) {
-    const abs = path.isAbsolute(p) ? p : path.join(root, p);
-    try {
-      if (fs.existsSync(abs)) present.push(p);
-      else missing.push(p);
-    } catch {
-      missing.push(p);
-    }
-  }
-  return { present, missing };
-}
-
-/**
- * Was the content at `filePath` later reverted?
- *
- * Answers by checking whether any commit touching the path is a revert, or
- * whether the file was subsequently deleted. Deliberately conservative: it
- * reports "possibly reverted", never a certainty.
- */
-export function laterRevertsTouching(
-  root: string,
-  paths: readonly string[],
-  afterMs: number,
-): GitCommit[] {
-  if (paths.length === 0) return [];
-  const commits = commitsInRange(root, afterMs, Date.now());
-  const set = new Set(paths.map((p) => (path.isAbsolute(p) ? path.relative(root, p) : p)));
-  return commits.filter((c) => c.isRevert && c.paths.some((p) => set.has(p)));
 }

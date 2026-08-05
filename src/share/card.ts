@@ -1,6 +1,5 @@
 import type { DayMetrics, TaskRecord } from '../core/types.ts';
 import { HOUR, formatDuration, roundHuman } from '../core/util.ts';
-import { CATEGORY_LABELS } from '../tasks/categorize.ts';
 import { BENCHMARK_VERSION } from '../estimate/priors.ts';
 
 /**
@@ -167,9 +166,31 @@ function wordmark(p: Palette, x: number, y: number): string {
   </g>`;
 }
 
-function footnote(p: Palette, x: number, y: number, extra?: string): string {
-  const base = `Estimated against a conventional non-AI engineering workflow · ${BENCHMARK_VERSION}`;
-  return `<text x="${x}" y="${y}" font-family="${FONT_STACK}" font-size="14" fill="${p.faint}">${esc(extra ? `${base} · ${extra}` : base)}</text>`;
+/**
+ * The qualifier, and nothing else.
+ *
+ * A card is read in a feed in under a second, and every word competes with the
+ * number for that second — so the layout is left to explain itself. The one
+ * thing the visuals cannot carry is what the hours are measured *against*, and
+ * a bare "47 hours" with that missing is the exact overclaim this product is
+ * built to avoid. It stays, small, on every variant.
+ */
+function footnote(p: Palette, x: number, y: number): string {
+  const line = `vs. a conventional non-AI engineering workflow · ${BENCHMARK_VERSION}`;
+  return `<text x="${x}" y="${y}" font-family="${FONT_STACK}" font-size="13" fill="${p.faint}">${esc(line)}</text>`;
+}
+
+/** A figure over a short label: the card's only repeated unit. */
+function stat(
+  p: Palette,
+  x: number,
+  y: number,
+  value: string,
+  label: string,
+  colour?: string,
+): string {
+  return `<text x="${x}" y="${y}" font-family="${MONO_STACK}" font-size="40" font-weight="600" fill="${colour ?? p.fg}">${esc(value)}</text>
+    <text x="${x}" y="${y + 32}" font-family="${FONT_STACK}" font-size="17" fill="${p.muted}">${esc(label)}</text>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -185,27 +206,8 @@ function renderHeadline(
 ): string {
   const m = data.metrics;
   const hours = roundHuman(m.verifiedHours.median);
-  const steering = formatDuration(m.steeringMs);
   const leverage = m.outputLeverage;
-  const verifiedCount =
-    (m.statusCounts['completed-validated'] ?? 0) +
-    (m.statusCounts['completed-weak-validation'] ?? 0);
-  const verifiedPct = m.taskCount > 0 ? Math.round((verifiedCount / m.taskCount) * 100) : 0;
-  const projects = new Set(
-    data.tasks
-      .filter((t) => !t.excluded)
-      .map((t) => t.repoId)
-      .filter(Boolean),
-  ).size;
-
-  const stats = [
-    `${m.taskCount} task${m.taskCount === 1 ? '' : 's'}`,
-    `${projects} project${projects === 1 ? '' : 's'}`,
-    `${verifiedPct}% verified`,
-    `peak ${m.peakConcurrency}× parallel`,
-  ].join('   ·   ');
-
-  const range = `${roundHuman(m.verifiedHours.p10)}–${roundHuman(m.verifiedHours.p90)}h range · ${m.confidence} confidence`;
+  const range = `${roundHuman(m.verifiedHours.p10)}–${roundHuman(m.verifiedHours.p90)}h`;
 
   return frame(
     p,
@@ -213,24 +215,17 @@ function renderHeadline(
     h,
     `
     ${wordmark(p, 72, 84)}
-    <text x="72" y="126" font-family="${FONT_STACK}" font-size="19" fill="${p.muted}">${esc(formatDayLabel(data.day))}</text>
+    <text x="${w - 72}" y="84" text-anchor="end" font-family="${FONT_STACK}" font-size="18" fill="${p.muted}">${esc(formatDayLabel(data.day))}</text>
 
-    <text x="72" y="292" font-family="${MONO_STACK}" font-size="150" font-weight="600" letter-spacing="-0.05em" fill="${p.fg}">${hours}<tspan font-family="${FONT_STACK}" font-size="52" font-weight="500" fill="${p.muted}" dx="16">hours</tspan></text>
-    <text x="72" y="344" font-family="${FONT_STACK}" font-size="30" font-weight="500" fill="${p.muted}">of conventional engineering work, produced through agents</text>
+    <text x="72" y="300" font-family="${MONO_STACK}" font-size="150" font-weight="600" letter-spacing="-0.05em" fill="${p.fg}">${hours}<tspan font-family="${FONT_STACK}" letter-spacing="0" font-size="52" font-weight="500" fill="${p.muted}" dx="16">hours</tspan></text>
+    <text x="72" y="352" font-family="${FONT_STACK}" font-size="28" font-weight="500" fill="${p.muted}">of conventional engineering work<tspan font-family="${MONO_STACK}" font-size="20" fill="${p.faint}" dx="20">${esc(range)}</tspan></text>
 
-    <line x1="72" y1="410" x2="${w - 72}" y2="410" stroke="${p.grid}" stroke-width="1"/>
+    <line x1="72" y1="428" x2="${w - 72}" y2="428" stroke="${p.grid}" stroke-width="1"/>
 
-    <text x="72" y="470" font-family="${MONO_STACK}" font-size="40" font-weight="600" fill="${p.fg}">${esc(steering)}</text>
-    <text x="72" y="502" font-family="${FONT_STACK}" font-size="17" fill="${p.muted}">your time</text>
+    ${stat(p, 72, 498, formatDuration(m.steeringMs), 'your time')}
+    ${stat(p, 392, 498, `${leverage.toFixed(leverage < 10 ? 1 : 0)}×`, 'leverage', p.accent)}
+    ${stat(p, 712, 498, String(m.peakConcurrency), 'peak agents')}
 
-    <text x="392" y="470" font-family="${MONO_STACK}" font-size="40" font-weight="600" fill="${p.accent}">${leverage.toFixed(leverage < 10 ? 1 : 0)}×</text>
-    <text x="392" y="502" font-family="${FONT_STACK}" font-size="17" fill="${p.muted}">output leverage</text>
-
-    <text x="712" y="470" font-family="${MONO_STACK}" font-size="40" font-weight="600" fill="${p.fg}">${m.peakConcurrency}</text>
-    <text x="712" y="502" font-family="${FONT_STACK}" font-size="17" fill="${p.muted}">peak concurrent agents</text>
-
-    <text x="72" y="576" font-family="${MONO_STACK}" font-size="17" fill="${p.muted}" letter-spacing="0.02em">${esc(stats)}</text>
-    <text x="72" y="606" font-family="${FONT_STACK}" font-size="15" fill="${p.faint}">${esc(range)}</text>
     ${footnote(p, 72, h - 34)}
   `,
   );
@@ -329,15 +324,16 @@ function renderTimeline(
     h,
     `
     ${wordmark(p, 72, 74)}
-    <text x="72" y="152" font-family="${MONO_STACK}" font-size="76" font-weight="600" letter-spacing="-0.045em" fill="${p.fg}">${roundHuman(m.verifiedHours.median)}<tspan font-family="${FONT_STACK}" font-size="32" font-weight="500" fill="${p.muted}" dx="14">conventional hours</tspan></text>
-    <text x="72" y="192" font-family="${FONT_STACK}" font-size="21" fill="${p.muted}">${esc(formatDayLabel(data.day))} · ${esc(formatDuration(m.steeringMs))} of your time · ${m.outputLeverage.toFixed(m.outputLeverage < 10 ? 1 : 0)}× leverage</text>
+    <text x="${w - 72}" y="74" text-anchor="end" font-family="${FONT_STACK}" font-size="18" fill="${p.muted}">${esc(formatDayLabel(data.day))}</text>
+    <text x="72" y="158" font-family="${MONO_STACK}" font-size="76" font-weight="600" letter-spacing="-0.045em" fill="${p.fg}">${roundHuman(m.verifiedHours.median)}<tspan font-family="${FONT_STACK}" letter-spacing="0" font-size="32" font-weight="500" fill="${p.muted}" dx="14">conventional hours</tspan></text>
+    <text x="72" y="196" font-family="${FONT_STACK}" font-size="21" fill="${p.muted}">${esc(formatDuration(m.steeringMs))} of your time · ${m.outputLeverage.toFixed(m.outputLeverage < 10 ? 1 : 0)}× leverage</text>
 
     ${hoursMarks}
-    <text x="72" y="${humanY - 14}" font-family="${FONT_STACK}" font-size="13" font-weight="600" letter-spacing="0.12em" fill="${p.fg}">YOU STEERING</text>
+    <text x="72" y="${humanY - 14}" font-family="${FONT_STACK}" font-size="13" font-weight="600" letter-spacing="0.12em" fill="${p.fg}">YOU</text>
     ${steerBars}
-    <text x="72" y="${laneTop - 14}" font-family="${FONT_STACK}" font-size="13" font-weight="600" letter-spacing="0.12em" fill="${p.muted}">AGENTS WORKING</text>
+    <text x="72" y="${laneTop - 14}" font-family="${FONT_STACK}" font-size="13" font-weight="600" letter-spacing="0.12em" fill="${p.muted}">AGENTS</text>
     ${bars}
-    ${footnote(p, 72, h - 34, `${m.taskCount} tasks · peak ${m.peakConcurrency} concurrent`)}
+    ${footnote(p, 72, h - 34)}
   `,
   );
 }
@@ -377,11 +373,11 @@ function renderProjects(
     h,
     `
     ${wordmark(p, 72, 74)}
-    <text x="72" y="164" font-family="${MONO_STACK}" font-size="82" font-weight="600" letter-spacing="-0.045em" fill="${p.fg}">${roundHuman(m.verifiedHours.median)}<tspan font-family="${FONT_STACK}" font-size="34" font-weight="500" fill="${p.muted}" dx="14">hours</tspan></text>
-    <text x="72" y="206" font-family="${FONT_STACK}" font-size="22" fill="${p.muted}">conventional engineering work across ${entries.length} project${entries.length === 1 ? '' : 's'} · ${esc(formatDuration(m.steeringMs))} of your time</text>
-    <text x="72" y="262" font-family="${FONT_STACK}" font-size="14" font-weight="600" letter-spacing="0.1em" fill="${p.muted}">BY PROJECT</text>
+    <text x="${w - 72}" y="74" text-anchor="end" font-family="${FONT_STACK}" font-size="18" fill="${p.muted}">${esc(formatDayLabel(data.day))}</text>
+    <text x="72" y="176" font-family="${MONO_STACK}" font-size="82" font-weight="600" letter-spacing="-0.045em" fill="${p.fg}">${roundHuman(m.verifiedHours.median)}<tspan font-family="${FONT_STACK}" letter-spacing="0" font-size="34" font-weight="500" fill="${p.muted}" dx="14">hours</tspan></text>
+    <text x="72" y="218" font-family="${FONT_STACK}" font-size="22" fill="${p.muted}">across ${entries.length} project${entries.length === 1 ? '' : 's'} · ${esc(formatDuration(m.steeringMs))} of your time</text>
     ${rows}
-    ${footnote(p, 72, h - 34, opts.revealProjects ? 'project names shown by your choice' : 'project names hidden')}
+    ${footnote(p, 72, h - 34)}
   `,
   );
 }
@@ -425,8 +421,8 @@ function renderWeekly(
     h,
     `
     ${wordmark(p, 72, 74)}
-    <text x="72" y="166" font-family="${MONO_STACK}" font-size="82" font-weight="600" letter-spacing="-0.045em" fill="${p.fg}">${roundHuman(total)}<tspan font-family="${FONT_STACK}" font-size="34" font-weight="500" fill="${p.muted}" dx="14">hours this week</tspan></text>
-    <text x="72" y="208" font-family="${FONT_STACK}" font-size="22" fill="${p.muted}">${esc(formatDuration(steer * HOUR))} of your time · ${lev.toFixed(lev < 10 ? 1 : 0)}× output leverage</text>
+    <text x="72" y="166" font-family="${MONO_STACK}" font-size="82" font-weight="600" letter-spacing="-0.045em" fill="${p.fg}">${roundHuman(total)}<tspan font-family="${FONT_STACK}" letter-spacing="0" font-size="34" font-weight="500" fill="${p.muted}" dx="14">hours this week</tspan></text>
+    <text x="72" y="208" font-family="${FONT_STACK}" font-size="22" fill="${p.muted}">${esc(formatDuration(steer * HOUR))} of your time · ${lev.toFixed(lev < 10 ? 1 : 0)}× leverage</text>
     <line x1="72" y1="${baseY}" x2="${w - 72}" y2="${baseY}" stroke="${p.grid}" stroke-width="1"/>
     ${bars}
     ${footnote(p, 72, h - 34)}
@@ -470,31 +466,20 @@ function axisTicks(min: number, max: number, count = 6): number[] {
  */
 export function describeExposure(opts: CardOptions, data: CardData): string[] {
   const out: string[] = [
-    'Total conventional engineering hours (an estimate)',
-    'Your own hands-on time (writing instructions and reviewing output)',
-    'Output leverage ratio',
-    'Number of tasks and projects',
-    'Peak concurrent agent count',
+    'Estimated conventional hours',
+    'Your hands-on time',
+    'Leverage ratio',
+    'Peak agent count',
     'The date',
   ];
-  if (opts.variant === 'timeline') {
-    out.push('Start and end times of each task, as unlabelled bars');
-    out.push('Times of day when you were steering');
-  }
+  if (opts.variant === 'timeline') out.push('Unlabelled task and steering bars, by time of day');
   if (opts.variant === 'projects') {
     out.push(
       opts.revealProjects
-        ? `Real project names: ${Object.values(aliasProjects(data.tasks, data.repoNames, true)).join(', ')}`
-        : 'Project names replaced with "Project A", "Project B", …',
+        ? `Project names: ${Object.values(aliasProjects(data.tasks, data.repoNames, true)).join(', ')}`
+        : 'Project names, aliased to "Project A", "Project B"',
     );
   }
-  if (opts.variant === 'weekly') out.push('Per-day totals for the last 7 days');
+  if (opts.variant === 'weekly') out.push('Per-day totals, last 7 days');
   return out;
-}
-
-/** Categories present in the day, for the UI legend. */
-export function categoryBreakdown(m: DayMetrics): { label: string; hours: number }[] {
-  return Object.entries(m.categoryHours)
-    .map(([k, v]) => ({ label: CATEGORY_LABELS[k as keyof typeof CATEGORY_LABELS] ?? k, hours: v }))
-    .sort((a, b) => b.hours - a.hours);
 }

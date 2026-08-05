@@ -1,7 +1,29 @@
 node_modules/
 dist/
-public/assets/
+
+# Build output. `scripts/build-ui.mjs` regenerates all of it, including
+# index.html, which it copies from src/ui/. prepublishOnly runs the build, so
+# the published tarball still ships it.
+public/
+
 *.log
 .DS_Store
 .leverage-test-home/
 .gstack/
+
+# npm pack output
+*.tgz
+
+# Local databases — LEVERAGE_HOME can point at the repo during development.
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+
+# Secrets should never be here, but make it hard to do by accident.
+.env
+.env.*
+
+# Editors
+.vscode/
+.idea/

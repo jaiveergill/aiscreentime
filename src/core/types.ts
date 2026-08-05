@@ -33,18 +33,6 @@ export type Epistemics =
   /** Supplied or overridden by the user. Always wins, always labelled. */
   | 'user-corrected';
 
-/** A value carrying its own epistemic status and explanation. */
-export interface Attributed<T> {
-  readonly value: T;
-  readonly epistemics: Epistemics;
-  /** Short human-readable justification, shown in "why this number?" views. */
-  readonly basis: string;
-}
-
-export function attribute<T>(value: T, epistemics: Epistemics, basis: string): Attributed<T> {
-  return { value, epistemics, basis };
-}
-
 /** Points at the exact raw record a normalized event was derived from. */
 export interface Provenance {
   readonly provider: ProviderId;
@@ -187,29 +175,6 @@ export interface NormalizedEvent {
   readonly isReplay: boolean;
   readonly payload: EventPayload;
   readonly provenance: Provenance;
-}
-
-// ---------------------------------------------------------------------------
-// Sessions
-// ---------------------------------------------------------------------------
-
-export interface SessionRecord {
-  readonly sessionId: string;
-  readonly provider: ProviderId;
-  readonly sourceFile: string;
-  readonly startedAt: number;
-  readonly endedAt: number;
-  readonly cwd?: string;
-  readonly repoId?: string;
-  readonly branch?: string;
-  readonly title?: string;
-  readonly model?: string;
-  readonly providerVersion?: string;
-  /** Session this one was forked or resumed from, when known. */
-  readonly parentSessionId?: string;
-  readonly kind: 'primary' | 'subagent' | 'fork' | 'resume';
-  readonly eventCount: number;
-  readonly userInstructionCount: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -361,7 +326,6 @@ export type ConfidenceLevel = 'high' | 'medium' | 'low';
 export interface TaskEstimate {
   readonly taskId: string;
   readonly benchmarkVersion: string;
-  readonly mode: EstimateMode;
   /** Effort a competent engineer would need for the *full intended* outcome. */
   readonly gross: EffortDistribution;
   /** Gross scaled by completion — what was actually produced. */
@@ -382,16 +346,9 @@ export interface TaskEstimate {
   readonly computedAt: number;
 }
 
-export type EstimateMode = 'conservative' | 'balanced' | 'upper-range';
-
 // ---------------------------------------------------------------------------
 // Daily analytics
 // ---------------------------------------------------------------------------
-
-export interface ConcurrencySample {
-  readonly ts: number;
-  readonly activeAgents: number;
-}
 
 export interface DayMetrics {
   /**
@@ -401,7 +358,6 @@ export interface DayMetrics {
   readonly shapeVersion: number;
   readonly dayKey: string;
   readonly benchmarkVersion: string;
-  readonly mode: EstimateMode;
   readonly verifiedHours: EffortDistribution;
   readonly acceptedHours: EffortDistribution;
   readonly grossHours: EffortDistribution;

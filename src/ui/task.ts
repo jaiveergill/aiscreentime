@@ -14,7 +14,7 @@ import type { EstimatePayload, TaskRow } from './app.ts';
 
 interface TaskDetail {
   task: TaskRow & { intent: string; wallClockMs: number; dayKey: string };
-  estimates: Record<string, EstimatePayload | null>;
+  estimate: EstimatePayload | null;
   events: {
     id: string;
     kind: string;
@@ -56,7 +56,6 @@ interface TaskDetail {
  */
 export function renderTaskDrawer(
   taskId: string,
-  mode: string,
   onClose: () => void,
   onChanged: () => Promise<void>,
 ): HTMLElement {
@@ -80,7 +79,7 @@ export function renderTaskDrawer(
   void (async () => {
     try {
       const detail = await api<TaskDetail>(`/api/task/${taskId}`);
-      mount(body, ...content(detail, mode, onClose, onChanged));
+      mount(body, ...content(detail, onClose, onChanged));
       drawer.querySelector<HTMLElement>('.drawer-close')?.focus();
     } catch (err) {
       mount(
@@ -99,12 +98,11 @@ export function renderTaskDrawer(
 
 function content(
   d: TaskDetail,
-  mode: string,
   onClose: () => void,
   onChanged: () => Promise<void>,
 ): HTMLElement[] {
   const t = d.task;
-  const est = d.estimates[mode] ?? d.estimates['conservative'] ?? null;
+  const est = d.estimate;
 
   const tabs = ['Estimate', 'Evidence', 'Timeline', 'Correct'] as const;
   let active: (typeof tabs)[number] = 'Estimate';
@@ -122,7 +120,7 @@ function content(
         mount(panel, correctTab(d, onChanged));
         break;
       default:
-        mount(panel, estimateTab(d, est, mode));
+        mount(panel, estimateTab(d, est));
     }
   };
 
@@ -185,7 +183,7 @@ function content(
 /* Estimate tab — "why this number?"                                   */
 /* ------------------------------------------------------------------ */
 
-function estimateTab(d: TaskDetail, est: EstimatePayload | null, mode: string): HTMLElement {
+function estimateTab(d: TaskDetail, est: EstimatePayload | null): HTMLElement {
   if (!est) {
     return h(
       'div',
@@ -197,26 +195,21 @@ function estimateTab(d: TaskDetail, est: EstimatePayload | null, mode: string): 
   const chain = h(
     'div',
     { class: 'panel' },
-    h('h3', {}, 'How the number narrows'),
+    h('h3', {}, 'How it narrows'),
     h(
       'div',
       { class: 'stack', style: { gap: '10px' } },
-      chainRow(
-        'Gross',
-        est.gross,
-        'What the full intended outcome would have taken a conventional engineer.',
-        1,
-      ),
+      chainRow('Gross', est.gross, 'the full intended outcome', 1),
       chainRow(
         'Accepted',
         est.accepted,
-        `Gross × ${est.completionFactor.toFixed(2)} completion — how much of the intended outcome was actually produced.`,
+        `× ${est.completionFactor.toFixed(2)} for what was produced`,
         est.completionFactor,
       ),
       chainRow(
         'Verified',
         est.verified,
-        `Accepted × ${est.verificationFactor.toFixed(2)} verification — how strongly the result was validated. This is the headline.`,
+        `× ${est.verificationFactor.toFixed(2)} for how well it was validated`,
         est.verificationFactor,
         true,
       ),
@@ -226,11 +219,11 @@ function estimateTab(d: TaskDetail, est: EstimatePayload | null, mode: string): 
   const factors = h(
     'div',
     { class: 'panel' },
-    h('h3', {}, 'Every factor applied'),
+    h('h3', {}, 'Factors'),
     h(
       'p',
       { class: 'faint', style: { fontSize: '12px', marginTop: '-4px', marginBottom: '12px' } },
-      `Starting from the ${d.prior.medianHours}h category median. ${d.prior.rationale}`,
+      `From a ${d.prior.medianHours}h category median.`,
     ),
     ...est.factors.map((f) =>
       h(
@@ -252,33 +245,10 @@ function estimateTab(d: TaskDetail, est: EstimatePayload | null, mode: string): 
       ? h(
           'div',
           { class: 'panel' },
-          h('h3', {}, 'What we are unsure about'),
+          h('h3', {}, 'Uncertainty'),
           h('ul', { class: 'exposure' }, ...est.uncertaintyNotes.map((n) => h('li', {}, n))),
         )
       : null;
-
-  const modes = h(
-    'div',
-    { class: 'panel' },
-    h('h3', {}, 'Across modes'),
-    h(
-      'dl',
-      { class: 'kv' },
-      ...(['conservative', 'balanced', 'upper-range'] as const).flatMap((m) => {
-        const e = d.estimates[m];
-        return [
-          h('dt', {}, m === mode ? `${m} ◂` : m),
-          h(
-            'dd',
-            {},
-            e
-              ? `${fmtHours(e.verified.median)}h  (${fmtHours(e.verified.p10)}–${fmtHours(e.verified.p90)})`
-              : '—',
-          ),
-        ];
-      }),
-    ),
-  );
 
   return h(
     'div',
@@ -311,14 +281,13 @@ function estimateTab(d: TaskDetail, est: EstimatePayload | null, mode: string): 
         h(
           'div',
           { class: 'faint mono', style: { fontSize: '11px', marginTop: '6px' } },
-          `${est.benchmarkVersion} · ${est.mode}${est.calibrated ? ' · calibrated' : ''}${est.semanticUsed ? ' · semantic' : ''}`,
+          `${est.benchmarkVersion}${est.calibrated ? ' · calibrated' : ''}${est.semanticUsed ? ' · semantic' : ''}`,
         ),
       ),
     ),
     chain,
     factors,
     notes,
-    modes,
   );
 }
 
@@ -388,7 +357,7 @@ function evidenceTab(d: TaskDetail): HTMLElement {
     h(
       'div',
       { class: 'panel' },
-      h('h3', {}, 'Measured counts'),
+      h('h3', {}, 'Counts'),
       h(
         'dl',
         { class: 'kv' },
@@ -419,9 +388,9 @@ function evidenceTab(d: TaskDetail): HTMLElement {
       h(
         'p',
         { class: 'faint', style: { fontSize: '11.5px', marginBottom: 0 } },
-        'All counts above are ',
+        'All ',
         tag('measured'),
-        ' — read directly from the transcripts and the filesystem.',
+        ' from transcripts and the filesystem.',
       ),
     ),
     files.size > 0
@@ -507,12 +476,12 @@ function evidenceTab(d: TaskDetail): HTMLElement {
     h(
       'div',
       { class: 'panel' },
-      h('h3', {}, 'Why these events were grouped'),
+      h('h3', {}, 'Why grouped'),
       d.groupingReasons.length === 0
         ? h(
             'p',
             { class: 'muted', style: { fontSize: '12.5px', margin: 0 } },
-            'A single continuous run of work in one session.',
+            'One continuous run in a single session.',
           )
         : h('ul', { class: 'exposure' }, ...d.groupingReasons.map((r) => h('li', {}, r))),
     ),
@@ -567,7 +536,7 @@ function timelineTab(d: TaskDetail): HTMLElement {
   return h(
     'div',
     { class: 'panel' },
-    h('h3', {}, `Reconstructed timeline (${interesting.length} events)`),
+    h('h3', {}, `Timeline (${interesting.length} events)`),
     h(
       'div',
       { class: 'stack', style: { gap: '0' } },
@@ -614,7 +583,7 @@ function timelineTab(d: TaskDetail): HTMLElement {
     h(
       'p',
       { class: 'faint', style: { fontSize: '11.5px', marginBottom: 0 } },
-      'Hover any row to see the exact source file, line, and parser it came from.',
+      'Hover a row for its source file and line.',
     ),
   );
 }
@@ -688,21 +657,11 @@ function correctTab(d: TaskDetail, onChanged: () => Promise<void>): HTMLElement 
     h(
       'div',
       { class: 'panel' },
-      h('h3', {}, 'Correct this task'),
+      h('h3', {}, 'Correct'),
       h('label', { class: 'field' }, h('span', {}, 'Title'), title),
       h('label', { class: 'field' }, h('span', {}, 'Category'), category),
       h('label', { class: 'field' }, h('span', {}, 'Outcome'), status),
-      h(
-        'label',
-        { class: 'check' },
-        excluded,
-        h(
-          'span',
-          {},
-          'Exclude from all totals',
-          h('small', {}, 'Use for work that should not count at all.'),
-        ),
-      ),
+      h('label', { class: 'check' }, excluded, h('span', {}, 'Exclude from all totals')),
       h(
         'button',
         {
@@ -715,10 +674,7 @@ function correctTab(d: TaskDetail, onChanged: () => Promise<void>): HTMLElement 
                 status: (status as HTMLSelectElement).value,
                 excluded: (excluded as HTMLInputElement).checked,
               });
-              mount(
-                feedback,
-                h('span', { style: { color: 'var(--verified)' } }, 'Saved. Totals recalculated.'),
-              );
+              mount(feedback, h('span', { style: { color: 'var(--verified)' } }, 'Saved.'));
               await onChanged();
             } catch (err) {
               mount(feedback, h('span', { style: { color: 'var(--fail)' } }, String(err)));
@@ -732,39 +688,17 @@ function correctTab(d: TaskDetail, onChanged: () => Promise<void>): HTMLElement 
     h(
       'div',
       { class: 'panel' },
-      h('h3', {}, 'Calibrate the estimate'),
+      h('h3', {}, 'Calibrate'),
       h(
         'p',
-        { class: 'prose', style: { fontSize: '12.5px', marginTop: '-4px' } },
-        'Your answer trains a ',
-        h('strong', {}, 'personal'),
-        ' baseline. It never changes the standardised competent-engineer estimate, and the two views stay separate.',
+        { class: 'faint', style: { fontSize: '12px', marginTop: '-4px' } },
+        'Trains a personal baseline. The standardised estimate is untouched.',
       ),
-      h(
-        'label',
-        { class: 'field' },
-        h('span', {}, 'How long would this have taken you, without AI? (hours)'),
-        hours,
-      ),
-      h(
-        'label',
-        { class: 'field' },
-        h('span', {}, 'How familiar are you with this repository?'),
-        familiarity,
-      ),
-      h(
-        'label',
-        { class: 'field' },
-        h('span', {}, 'How much of the result was genuinely usable? (%)'),
-        usable,
-      ),
-      h('label', { class: 'check' }, rewrote, h('span', {}, 'I substantially rewrote the output')),
-      h(
-        'label',
-        { class: 'field' },
-        h('span', {}, 'Would another competent engineer differ?'),
-        peer,
-      ),
+      h('label', { class: 'field' }, h('span', {}, 'Hours this would have taken you'), hours),
+      h('label', { class: 'field' }, h('span', {}, 'Familiarity with this repo'), familiarity),
+      h('label', { class: 'field' }, h('span', {}, 'Usable output (%)'), usable),
+      h('label', { class: 'check' }, rewrote, h('span', {}, 'I substantially rewrote it')),
+      h('label', { class: 'field' }, h('span', {}, 'Another engineer would be'), peer),
       h(
         'button',
         {
@@ -786,14 +720,7 @@ function correctTab(d: TaskDetail, onChanged: () => Promise<void>): HTMLElement 
                 rewrote: (rewrote as HTMLInputElement).checked,
                 peerComparison: (peer as HTMLSelectElement).value,
               });
-              mount(
-                feedback,
-                h(
-                  'span',
-                  { style: { color: 'var(--verified)' } },
-                  'Calibration recorded. Your personal baseline updated.',
-                ),
-              );
+              mount(feedback, h('span', { style: { color: 'var(--verified)' } }, 'Recorded.'));
               await onChanged();
             } catch (err) {
               mount(feedback, h('span', { style: { color: 'var(--fail)' } }, String(err)));
@@ -806,11 +733,11 @@ function correctTab(d: TaskDetail, onChanged: () => Promise<void>): HTMLElement 
     h(
       'div',
       { class: 'panel' },
-      h('h3', {}, 'Set the hours directly'),
+      h('h3', {}, 'Set the hours'),
       h(
         'p',
-        { class: 'prose', style: { fontSize: '12.5px', marginTop: '-4px' } },
-        'Replaces the model entirely for this task. The value is labelled as edited by you everywhere it appears, including on share cards.',
+        { class: 'faint', style: { fontSize: '12px', marginTop: '-4px' } },
+        'Replaces the model here, and is labelled as yours everywhere it appears.',
       ),
       h(
         'div',

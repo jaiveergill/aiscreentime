@@ -2,7 +2,15 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { containsSecret, redact, redactPath } from '../../src/privacy/redact.ts';
-import { buildPrompt, parseAdjustments, sanitizeTask } from '../../src/semantic/provider.ts';
+import {
+  buildPrompt,
+  createSemanticProvider,
+  parseAdjustments,
+  sanitizeTask,
+} from '../../src/semantic/provider.ts';
+import { DEFAULT_SETTINGS, sanitizeSettingsPatch } from '../../src/core/config.ts';
+import { Db } from '../../src/store/db.ts';
+import { tmpDir } from '../helpers.ts';
 import {
   aliasProjects,
   describeExposure,
@@ -209,7 +217,7 @@ describe('semantic layer privacy', () => {
 describe('share card privacy defaults', () => {
   const day = '2026-05-12';
   const metrics = {
-    ...emptyDayMetrics(day, 'conservative'),
+    ...emptyDayMetrics(day),
     verifiedHours: { median: 27, sigma: 0.5, p10: 19, p50: 27, p90: 38, mean: 29 },
     steeringMs: 3180_000,
     outputLeverage: 30,
@@ -218,7 +226,7 @@ describe('share card privacy defaults', () => {
     projectCount: 2,
     repoHours: { r1: 11.5, r2: 11 },
     statusCounts: {
-      ...emptyDayMetrics(day, 'conservative').statusCounts,
+      ...emptyDayMetrics(day).statusCounts,
       'completed-validated': 9,
     },
   };
@@ -360,5 +368,107 @@ describe('share card privacy defaults', () => {
     });
     assert.ok(!svg.includes('<script>'), 'markup is escaped');
     assert.ok(svg.includes('&lt;script&gt;'));
+  });
+});
+
+/* ================================================================== */
+/* Egress guarantees                                                   */
+/* ================================================================== */
+
+describe('the local semantic provider keeps its promise', () => {
+  const openDb = () => new Db({ dir: tmpDir('leverage-egress-') });
+
+  test('never sends an API key to a local endpoint', () => {
+    // The settings UI labels this provider "nothing leaves this machine".
+    // It is built by spreading the OpenAI config, so a regression here means
+    // the user's OPENAI_API_KEY is sent to whatever the base URL points at.
+    const prev = process.env['OPENAI_API_KEY'];
+    process.env['OPENAI_API_KEY'] = 'sk-must-never-be-sent';
+    const db = openDb();
+    try {
+      const p = createSemanticProvider(db, {
+        ...DEFAULT_SETTINGS,
+        semanticEnabled: true,
+        semanticProvider: 'local',
+      });
+      assert.ok(p, 'provider is built');
+      assert.equal(p.isLocal, true);
+      const headers = (p as unknown as { cfg: { headers: (k?: string) => object } }).cfg.headers(
+        process.env['OPENAI_API_KEY'],
+      );
+      const serialized = JSON.stringify(headers).toLowerCase();
+      assert.ok(!serialized.includes('authorization'), 'no authorization header');
+      assert.ok(!serialized.includes('sk-must-never-be-sent'), 'no key in headers');
+      assert.equal(
+        (p as unknown as { cfg: { apiKeyEnv?: string } }).cfg.apiKeyEnv,
+        undefined,
+        'no key is even read from the environment',
+      );
+    } finally {
+      db.close();
+      if (prev === undefined) delete process.env['OPENAI_API_KEY'];
+      else process.env['OPENAI_API_KEY'] = prev;
+    }
+  });
+
+  test('the remote providers still authenticate normally', () => {
+    const db = openDb();
+    try {
+      const p = createSemanticProvider(db, {
+        ...DEFAULT_SETTINGS,
+        semanticEnabled: true,
+        semanticProvider: 'openai',
+      });
+      assert.ok(p);
+      assert.equal(p.isLocal, false);
+      const headers = (p as unknown as { cfg: { headers: (k?: string) => object } }).cfg.headers(
+        'sk-test',
+      );
+      assert.ok(JSON.stringify(headers).includes('sk-test'), 'remote calls are still authorised');
+    } finally {
+      db.close();
+    }
+  });
+});
+
+describe('settings are validated at the trust boundary', () => {
+  test('a non-loopback local base URL is refused', () => {
+    for (const bad of [
+      'https://attacker.example/v1',
+      'http://169.254.169.254/latest',
+      'file:///etc/passwd',
+      'not a url',
+    ]) {
+      const patch = sanitizeSettingsPatch({ semanticLocalBaseUrl: bad });
+      assert.equal(
+        patch.semanticLocalBaseUrl,
+        undefined,
+        `${bad} must not become the local endpoint`,
+      );
+    }
+  });
+
+  test('loopback URLs are accepted', () => {
+    for (const ok of ['http://127.0.0.1:11434/v1', 'http://localhost:1234/v1']) {
+      assert.equal(sanitizeSettingsPatch({ semanticLocalBaseUrl: ok }).semanticLocalBaseUrl, ok);
+    }
+  });
+
+  test('unknown keys are dropped and known ones are type-checked', () => {
+    const patch = sanitizeSettingsPatch({
+      __proto__: { polluted: true },
+      notASetting: 'nope',
+      historyDays: 'thirty',
+      excludedRepos: [1, 2, 3],
+      redactMode: 'off',
+      semanticProvider: 'evil',
+      autoRefreshSeconds: -5,
+    });
+    assert.equal((patch as Record<string, unknown>)['notASetting'], undefined);
+    assert.equal(patch.historyDays, undefined, 'a string is not a day count');
+    assert.equal(patch.excludedRepos, undefined, 'numbers are not repo paths');
+    assert.equal(patch.redactMode, undefined, 'redaction cannot be turned off');
+    assert.equal(patch.semanticProvider, undefined, 'provider is an enum');
+    assert.equal(patch.autoRefreshSeconds, 0, 'out-of-range numbers are clamped, not stored raw');
   });
 });

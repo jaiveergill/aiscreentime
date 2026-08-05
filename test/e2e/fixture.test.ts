@@ -53,12 +53,11 @@ before(() => {
   installDemoData(db, DEMO_BASE);
   const s = settings();
   computeDerived(db, { settings: s });
-  computeDayMetrics(db, DAY, 'conservative', s);
+  computeDayMetrics(db, DAY, s);
   tasks = loadTasksForDay(db, DAY).filter((t) => !t.excluded);
   estimates = loadEstimates(
     db,
     tasks.map((t) => t.taskId),
-    'conservative',
   );
 });
 
@@ -219,7 +218,7 @@ describe('fixture: estimate ordering', () => {
 
 describe('fixture: day metrics', () => {
   test('the day totals are plausible and internally consistent', () => {
-    const m = computeDayMetrics(db, DAY, 'conservative', settings());
+    const m = computeDayMetrics(db, DAY, settings());
     assert.ok(m.taskCount >= 10 && m.taskCount <= 16, `expected ~12 tasks, got ${m.taskCount}`);
     assert.ok(m.verifiedHours.median > 0);
     assert.ok(m.grossHours.median >= m.acceptedHours.median);
@@ -233,7 +232,7 @@ describe('fixture: day metrics', () => {
   });
 
   test('steering time is bounded by the day and ordered across parameterisations', () => {
-    const m = computeDayMetrics(db, DAY, 'conservative', settings());
+    const m = computeDayMetrics(db, DAY, settings());
     assert.ok(m.steeringMs > 0, 'a person was clearly present');
     assert.ok(m.steeringMs < 24 * 3600_000, 'and cannot have steered more than a day');
     assert.ok(m.steeringLowMs <= m.steeringMs);
@@ -241,26 +240,29 @@ describe('fixture: day metrics', () => {
   });
 
   test('concurrency is detected without inflating human time', () => {
-    const m = computeDayMetrics(db, DAY, 'conservative', settings());
+    const m = computeDayMetrics(db, DAY, settings());
     assert.ok(m.peakConcurrency >= 2, 'the fixture contains a genuinely concurrent pair');
     assert.ok(m.agentActiveMs > m.steeringMs, 'agents worked longer than the person steered');
   });
 
   test('reverted and failed work shows up in the rework rate', () => {
-    const m = computeDayMetrics(db, DAY, 'conservative', settings());
+    const m = computeDayMetrics(db, DAY, settings());
     assert.ok(m.reworkRate > 0, 'the fixture contains a revert and a failure');
   });
 
-  test('modes are ordered at the day level too', () => {
+  test('a day has exactly one headline figure', () => {
+    // There used to be three estimate modes here, ordered smallest to largest.
+    // They were the same number times a constant, so the choice only ever
+    // decided how flattering the headline looked. The day is deterministic now:
+    // recomputing it can never hand back a different answer.
     const s = settings();
-    const c = computeDayMetrics(db, DAY, 'conservative', s).verifiedHours.median;
-    const b = computeDayMetrics(db, DAY, 'balanced', s).verifiedHours.median;
-    const u = computeDayMetrics(db, DAY, 'upper-range', s).verifiedHours.median;
-    assert.ok(c < b && b < u, `expected ordering, got ${c} ${b} ${u}`);
+    const first = computeDayMetrics(db, DAY, s).verifiedHours.median;
+    const again = computeDayMetrics(db, DAY, s).verifiedHours.median;
+    assert.equal(first, again);
   });
 
   test('the headline is not absurd relative to the steering time', () => {
-    const m = computeDayMetrics(db, DAY, 'conservative', settings());
+    const m = computeDayMetrics(db, DAY, settings());
     // A sanity ceiling. If leverage ever exceeds this on a 12-task day, the
     // model has a bug, not a discovery.
     assert.ok(m.outputLeverage > 1, 'agents should beat unassisted work');
@@ -273,7 +275,7 @@ describe('fixture: day metrics', () => {
 
 describe('fixture: the dashboard tells the truth', () => {
   test('the sum of credited task hours matches the day headline', () => {
-    const m = computeDayMetrics(db, DAY, 'conservative', settings());
+    const m = computeDayMetrics(db, DAY, settings());
     const sum = tasks.reduce((a, t) => a + (estimates.get(t.taskId)?.verified.mean ?? 0), 0);
     assert.ok(
       Math.abs(sum - m.verifiedHours.mean) < 0.01,
@@ -290,7 +292,7 @@ describe('fixture: the dashboard tells the truth', () => {
   });
 
   test('the share card exposes nothing private by default', () => {
-    const m = computeDayMetrics(db, DAY, 'conservative', settings());
+    const m = computeDayMetrics(db, DAY, settings());
     const repoNames: Record<string, string> = {};
     for (const t of tasks) if (t.repoId) repoNames[t.repoId] = 'acme-web';
     const svg = renderCard(

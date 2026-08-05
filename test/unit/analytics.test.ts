@@ -1209,7 +1209,6 @@ describe('counterfactual estimation', () => {
     taskId: 't1',
     category: 'feature-brownfield' as const,
     categoryConfidence: 0.8,
-    mode: 'balanced' as const,
     repoIsGit: true,
     languageCount: 1,
     touchesMigration: false,
@@ -1371,7 +1370,6 @@ describe('counterfactual estimation', () => {
       }),
       repoFileCount: 20000,
       touchesMigration: true,
-      mode: 'upper-range',
     });
     assert.ok(
       e.factors.some((f) => f.key === 'extreme-guard'),
@@ -1380,12 +1378,12 @@ describe('counterfactual estimation', () => {
     assert.equal(e.confidence, 'low');
   });
 
-  test('modes are ordered and conservative is the smallest', () => {
-    const mk = (mode: 'conservative' | 'balanced' | 'upper-range') =>
-      estimateTask({ ...base, mode, evidence: evidence(), verification: verification() }).verified
-        .median;
-    assert.ok(mk('conservative') < mk('balanced'));
-    assert.ok(mk('balanced') < mk('upper-range'));
+  test('a single conservative discount is applied, and it is the only one on offer', () => {
+    const e = estimateTask({ ...base, evidence: evidence(), verification: verification() });
+    const discount = e.factors.find((f) => f.key === 'conservatism');
+    assert.ok(discount, 'the discount is a named factor, not a hidden constant');
+    assert.equal(discount?.multiplier, 0.8);
+    assert.ok(!e.factors.some((f) => f.key === 'mode'), 'there is no selectable estimate mode');
   });
 
   test('every factor is named, bounded and explained', () => {

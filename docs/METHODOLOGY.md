@@ -255,7 +255,7 @@ Rules that matter:
 ## 10. Estimation
 
 ```
-gross     = categoryPrior.median × Π(bounded factors) × modeMultiplier
+gross     = categoryPrior.median × Π(bounded factors)
 accepted  = gross    × completionFactor
 verified  = accepted × verificationFactor      ← the headline
 ```
@@ -278,7 +278,7 @@ Factors, all bounded and all shown in the task view with their rationale:
 | Boilerplate | 0.45–1.0 | scaffolding shape — a **discount** |
 | Semantic | 0.6–1.6 | optional LLM layer |
 | Calibration | 0.4–2.5 | your own data, shrunk |
-| Mode | 0.8 / 1.0 / 1.25 | conservative / balanced / upper-range |
+| Conservatism | 0.8 | applied to every estimate, always |
 
 **Never used as multipliers:** tokens, tool calls, agent runtime, prompt count,
 file count taken linearly. Size appears only as a heavily sublinear complexity
@@ -296,7 +296,9 @@ between diff size and engineering effort is weak and trivially gameable.
 - Estimates above 12 hours with weak evidence are heavily discounted and flagged,
   and confidence is reduced by 35%.
 - Failed, reverted, and superseded work is discounted to near zero.
-- Share cards always use conservative mode.
+- There is one estimate, not a menu. A selectable multiplier would be the same
+  number rescaled, and offering one only invites picking the flattering figure.
+  The single number carries a flat 20% discount.
 - User-edited estimates are labelled everywhere they appear.
 
 ---

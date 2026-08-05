@@ -39,7 +39,6 @@ COMMANDS
 OPTIONS
   --port <n>         Port for the dashboard (default 7777)
   --days <n>         History window for ingest (default from settings)
-  --mode <m>         conservative | balanced | upper-range
   --variant <v>      headline | timeline | projects | weekly  (share)
   --theme <t>        dark | light  (share)
   --reveal-projects  Include real project names on the share card
@@ -99,7 +98,6 @@ export async function main(argv: string[]): Promise<number> {
     level: (process.env.LEVERAGE_LOG_LEVEL as 'info') ?? 'info',
   });
   const settings = loadSettings(ctx.db);
-  const mode = (args.flags['mode'] as string) || settings.mode;
 
   try {
     switch (args.command) {
@@ -169,7 +167,7 @@ export async function main(argv: string[]): Promise<number> {
           args.command === 'today'
             ? dayKey(Date.now(), settings.timezone || undefined)
             : (args.positional[0] ?? dayKey(Date.now(), settings.timezone || undefined));
-        printDay(ctx, day, mode as 'conservative', Boolean(args.flags['json']));
+        printDay(ctx, day, Boolean(args.flags['json']));
         return 0;
       }
 
@@ -179,7 +177,6 @@ export async function main(argv: string[]): Promise<number> {
         const est = loadEstimates(
           ctx.db,
           tasks.map((t) => t.taskId),
-          mode as 'conservative',
         );
         if (args.flags['json']) {
           process.stdout.write(
@@ -211,7 +208,7 @@ export async function main(argv: string[]): Promise<number> {
         const theme = (args.flags['theme'] as string) ?? 'dark';
         const reveal = args.flags['reveal-projects'] ? '1' : '0';
         const url = new URL(
-          `http://local/api/share/${day}?variant=${variant}&theme=${theme}&revealProjects=${reveal}&mode=${mode}`,
+          `http://local/api/share/${day}?variant=${variant}&theme=${theme}&revealProjects=${reveal}`,
         );
         const res = await handleApi(ctx, 'GET', url, undefined);
         if (typeof res.raw !== 'string') {
@@ -297,11 +294,7 @@ export async function main(argv: string[]): Promise<number> {
         const from = 0;
         const { computeDerived } = await import('../analytics/pipeline.ts');
         const res = computeDerived(ctx.db, { settings: s, from });
-        for (const d of res.daysTouched) {
-          for (const m of ['conservative', 'balanced', 'upper-range'] as const) {
-            computeDayMetrics(ctx.db, d, m, s);
-          }
-        }
+        for (const d of res.daysTouched) computeDayMetrics(ctx.db, d, s);
         const demoDay = dayKey(demoBaseInstant(), s.timezone || undefined);
         process.stdout.write(
           `\n  ${c.green('✓')} loaded ${n} synthetic events → ${res.tasksBuilt} tasks on ${c.bold(demoDay)}\n` +
@@ -388,14 +381,9 @@ async function runIngestWithProgress(
   }
 }
 
-function printDay(
-  ctx: ReturnType<typeof createContext>,
-  day: string,
-  mode: 'conservative',
-  asJson: boolean,
-): void {
+function printDay(ctx: ReturnType<typeof createContext>, day: string, asJson: boolean): void {
   const settings = loadSettings(ctx.db);
-  const m = computeDayMetrics(ctx.db, day, mode, settings);
+  const m = computeDayMetrics(ctx.db, day, settings);
   if (asJson) {
     process.stdout.write(`${JSON.stringify(m, null, 2)}\n`);
     return;
@@ -433,7 +421,7 @@ function printDay(
   process.stdout.write(
     `  ${c.dim(`range ${roundHuman(m.verifiedHours.p10)}–${roundHuman(m.verifiedHours.p90)}h · confidence ${m.confidence} · steering ${formatDuration(m.steeringLowMs)}–${formatDuration(m.steeringHighMs)}`)}\n`,
   );
-  process.stdout.write(`  ${c.dim(`benchmark ${m.benchmarkVersion} · ${mode} mode`)}\n\n`);
+  process.stdout.write(`  ${c.dim(`benchmark ${m.benchmarkVersion}`)}\n\n`);
 }
 
 function statusMark(status: string): string {

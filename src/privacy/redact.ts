@@ -213,22 +213,6 @@ export function stripPaths(input: string): string {
     .replace(/[A-Za-z]:\\(?:[\w.@~ -]+\\?){2,}/g, '[path]');
 }
 
-/**
- * Collapse every absolute path in the text to its basename. Used for *local*
- * display, where the user already has access to their own filesystem.
- */
-export function collapsePaths(input: string): string {
-  return input
-    .replace(/(?:\/[\w.@~-]+){2,}/g, (m) => {
-      const base = m.split('/').filter(Boolean).pop() ?? '';
-      return base ? `…/${base}` : '…';
-    })
-    .replace(/[A-Za-z]:\\(?:[\w.@~ -]+\\?){2,}/g, (m) => {
-      const base = m.split('\\').filter(Boolean).pop() ?? '';
-      return base ? `…\\${base}` : '…';
-    });
-}
-
 /** True if the text contains anything our always-on rules would redact. */
 export function containsSecret(input: string): boolean {
   return RULES.some((r) => r.always && new RegExp(r.re.source, r.re.flags).test(input));

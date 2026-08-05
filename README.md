@@ -14,8 +14,10 @@ It counts what survived, not what was generated. Everything runs locally.
 
 ## Install and run
 
-Requires **Node 22.18+** (24+ recommended). No other runtime, no database server,
-no account, no API key.
+Requires **Node 22.5+** (24+ recommended) — that is where `node:sqlite` landed.
+Running from a source checkout instead of the published package needs **22.18+**,
+for built-in type stripping. No other runtime, no database server, no account,
+no API key.
 
 ```bash
 npx @jaiveergill/leverage
@@ -55,7 +57,7 @@ leverage
 | `leverage demo` | Load a clearly-labelled synthetic dataset |
 | `leverage reset [--all]` | Delete derived data (`--all` also deletes imported events) |
 
-Useful flags: `--port`, `--mode conservative|balanced|upper-range`, `--json`, `--no-open`.
+Useful flags: `--port`, `--json`, `--no-open`.
 
 ### No Claude Code or Codex installed?
 

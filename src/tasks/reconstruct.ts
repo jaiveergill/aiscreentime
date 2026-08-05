@@ -1,5 +1,5 @@
 import type { NormalizedEvent, TaskEvidence, ProviderId } from '../core/types.ts';
-import { dayKey, hashId, uniq } from '../core/util.ts';
+import { hashId, uniq } from '../core/util.ts';
 import { subsystemOf } from '../normalize/paths.ts';
 import {
   deriveTitle,
@@ -563,8 +563,4 @@ export function segmentTitle(seg: TaskSegment, fallback?: string): string {
     return deriveTitle(`Work on ${names.join(', ')}`);
   }
   return 'Untitled work';
-}
-
-export function segmentDayKey(seg: TaskSegment, tz?: string): string {
-  return dayKey(seg.startedAt, tz);
 }

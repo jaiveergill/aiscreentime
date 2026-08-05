@@ -1,5 +1,4 @@
 import type {
-  EstimateMode,
   EventPayload,
   NormalizedEvent,
   TaskCategory,
@@ -39,7 +38,6 @@ export interface ComputeOptions {
   readonly settings: Settings;
   readonly from?: number;
   readonly to?: number;
-  readonly modes?: readonly EstimateMode[];
   readonly semanticProvider?: (
     segments: readonly SemanticRequest[],
   ) => Promise<Map<string, SemanticAdjustment>>;
@@ -82,7 +80,6 @@ export function computeDerived(db: Db, opts: ComputeOptions): ComputeResult {
   const t0 = Date.now();
   const from = opts.from ?? 0;
   const to = opts.to ?? Date.now();
-  const modes = opts.modes ?? (['conservative', 'balanced', 'upper-range'] as const);
   const tz = opts.settings.timezone || undefined;
 
   const events = loadEvents(db, from, to, opts.settings);
@@ -138,9 +135,9 @@ export function computeDerived(db: Db, opts: ComputeOptions): ComputeResult {
     'INSERT OR IGNORE INTO task_events (task_id, event_id) VALUES (?,?)',
   );
   const insertEstimate = db.handle.prepare(`
-    INSERT INTO estimates (task_id, benchmark_version, mode, payload, computed_at)
-    VALUES (?,?,?,?,?)
-    ON CONFLICT(task_id, benchmark_version, mode) DO UPDATE SET
+    INSERT INTO estimates (task_id, benchmark_version, payload, computed_at)
+    VALUES (?,?,?,?)
+    ON CONFLICT(task_id, benchmark_version) DO UPDATE SET
       payload=excluded.payload, computed_at=excluded.computed_at
   `);
 
@@ -266,29 +263,26 @@ export function computeDerived(db: Db, opts: ComputeOptions): ComputeResult {
       // Applied only if a prior semantic pass produced one. Never blocks.
       const semantic = opts.settings.semanticEnabled ? readTaskAdjustment(db, taskId) : undefined;
 
-      for (const mode of modes) {
-        const estimate = estimateTask({
-          taskId,
-          category,
-          categoryConfidence: override?.category ? 1 : cat.confidence,
-          evidence: evidenceWithGit,
-          verification: { ...verification, status },
-          mode,
-          researchDepth: depth,
-          ...(semantic ? { semantic } : {}),
-          ...(repo?.fileCount ? { repoFileCount: repo.fileCount } : {}),
-          repoIsGit: repo?.isGit ?? false,
-          languageCount: Math.max(1, langs),
-          touchesMigration: paths.some(isMigrationPath),
-          touchesInfra: paths.some(isInfraPath),
-          ...(calibration ? { calibration } : {}),
-          ...(override?.hours !== undefined && override.hours !== null
-            ? { userOverrideHours: override.hours }
-            : {}),
-        });
-        insertEstimate.run(taskId, BENCHMARK_VERSION, mode, JSON.stringify(estimate), Date.now());
-        estimatesWritten++;
-      }
+      const estimate = estimateTask({
+        taskId,
+        category,
+        categoryConfidence: override?.category ? 1 : cat.confidence,
+        evidence: evidenceWithGit,
+        verification: { ...verification, status },
+        researchDepth: depth,
+        ...(semantic ? { semantic } : {}),
+        ...(repo?.fileCount ? { repoFileCount: repo.fileCount } : {}),
+        repoIsGit: repo?.isGit ?? false,
+        languageCount: Math.max(1, langs),
+        touchesMigration: paths.some(isMigrationPath),
+        touchesInfra: paths.some(isInfraPath),
+        ...(calibration ? { calibration } : {}),
+        ...(override?.hours !== undefined && override.hours !== null
+          ? { userOverrideHours: override.hours }
+          : {}),
+      });
+      insertEstimate.run(taskId, BENCHMARK_VERSION, JSON.stringify(estimate), Date.now());
+      estimatesWritten++;
 
       built.push({ record, verification });
     }

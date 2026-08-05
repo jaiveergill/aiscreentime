@@ -1,7 +1,6 @@
 import type {
   ConfidenceLevel,
   EffortDistribution,
-  EstimateMode,
   EstimationFactor,
   TaskCategory,
   TaskEstimate,
@@ -42,13 +41,15 @@ import type { VerificationResult } from '../verify/outcome.ts';
  * effort is famously weak and trivially gameable.
  */
 
-const MODE_MULTIPLIER: Record<EstimateMode, number> = {
-  /** Default, and the only mode used for share cards. */
-  conservative: 0.8,
-  balanced: 1.0,
-  /** Upper end of a defensible range. Never called "aggressive". */
-  'upper-range': 1.25,
-};
+/**
+ * Flat discount applied to every estimate.
+ *
+ * There is one estimate, not a menu of them. A user-selectable multiplier is
+ * not extra information — it is the same number rescaled by a constant — and
+ * offering one only invites picking whichever looks best. This single number
+ * errs low on purpose.
+ */
+const CONSERVATISM = 0.8;
 
 export interface EstimateInput {
   readonly taskId: string;
@@ -56,7 +57,6 @@ export interface EstimateInput {
   readonly categoryConfidence: number;
   readonly evidence: TaskEvidence;
   readonly verification: VerificationResult;
-  readonly mode: EstimateMode;
   /** Rough file count of the repository, if known. */
   readonly repoFileCount?: number;
   readonly repoIsGit: boolean;
@@ -433,23 +433,15 @@ export function estimateTask(input: EstimateInput): TaskEstimate {
   }
   sigma = clamp(sigma, 0.45, 1.3);
 
-  // --- mode ----------------------------------------------------------------
-  const modeM = MODE_MULTIPLIER[input.mode];
-  if (modeM !== 1) {
-    factors.push({
-      key: 'mode',
-      label: `${input.mode} mode`,
-      multiplier: modeM,
-      rationale:
-        input.mode === 'conservative'
-          ? 'Conservative mode applies a 20% discount to every estimate. It is the default and the only mode used on share cards.'
-          : input.mode === 'upper-range'
-            ? 'Upper-range mode reports the higher end of a defensible interval.'
-            : 'Balanced mode applies the priors as calibrated.',
-      epistemics: 'derived',
-    });
-    median *= modeM;
-  }
+  // --- conservatism ---------------------------------------------------------
+  factors.push({
+    key: 'conservatism',
+    label: 'Conservative discount',
+    multiplier: CONSERVATISM,
+    rationale: 'A flat 20% comes off every estimate, so the headline errs low.',
+    epistemics: 'derived',
+  });
+  median *= CONSERVATISM;
 
   // --- anti-gaming guard ---------------------------------------------------
   const evidenceStrength = computeEvidenceStrength(input);
@@ -495,7 +487,6 @@ export function estimateTask(input: EstimateInput): TaskEstimate {
     return {
       taskId: input.taskId,
       benchmarkVersion: BENCHMARK_VERSION,
-      mode: input.mode,
       gross: overrideDist,
       accepted: overrideDist,
       verified: overrideDist,
@@ -525,7 +516,6 @@ export function estimateTask(input: EstimateInput): TaskEstimate {
   return {
     taskId: input.taskId,
     benchmarkVersion: BENCHMARK_VERSION,
-    mode: input.mode,
     gross,
     accepted,
     verified,

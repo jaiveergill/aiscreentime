@@ -9,9 +9,11 @@ import type { AppState } from './app.ts';
  * service is contacted — the PNG is produced in the page and handed straight
  * to a download.
  *
- * Privacy is the default: project names are aliased unless the user explicitly
- * opts in, and the exposure list below is generated from the same options the
- * renderer receives, so the preview cannot drift from the artefact.
+ * The page is deliberately almost wordless. The preview is the explanation:
+ * whatever the card will contain is already visible in it, so prose here would
+ * only restate the picture. The one thing the picture cannot show is what it
+ * *omits*, which is why the exposure list survives — folded away, and generated
+ * from the same options the renderer receives so it cannot drift.
  */
 
 interface Options {
@@ -28,12 +30,12 @@ export function renderShare(state: AppState): HTMLElement {
     h('div', { class: 'skeleton', style: { height: '340px' } }),
   );
   const exposure = h('ul', { class: 'exposure' });
-  const status = h('div', { style: { minHeight: '20px', fontSize: '12px', marginTop: '10px' } });
+  const status = h('div', { style: { minHeight: '20px', fontSize: '12px' } });
 
   let currentSvg = '';
 
   const query = (): string =>
-    `variant=${opts.variant}&theme=${opts.theme}&revealProjects=${opts.revealProjects ? '1' : '0'}&mode=${state.mode}`;
+    `variant=${opts.variant}&theme=${opts.theme}&revealProjects=${opts.revealProjects ? '1' : '0'}`;
 
   const refreshPreview = async (): Promise<void> => {
     try {
@@ -60,7 +62,7 @@ export function renderShare(state: AppState): HTMLElement {
     h(
       'button',
       {
-        class: 'btn',
+        class: `btn${value === opts.variant ? ' btn-primary' : ''}`,
         'data-variant': value,
         onclick: (e: Event) => {
           opts.variant = value;
@@ -99,17 +101,20 @@ export function renderShare(state: AppState): HTMLElement {
       a.download = `leverage-${state.day}-${opts.variant}@${scale}x.png`;
       a.click();
       URL.revokeObjectURL(a.href);
-      mount(
-        status,
-        h(
-          'span',
-          { style: { color: 'var(--verified)' } },
-          `Saved ${w}×${hpx} PNG to your downloads.`,
-        ),
-      );
+      mount(status, h('span', { style: { color: 'var(--verified)' } }, `Saved ${w}×${hpx}.`));
     } catch (err) {
       mount(status, h('span', { style: { color: 'var(--fail)' } }, String(err)));
     }
+  };
+
+  const saveSvg = (): void => {
+    if (!currentSvg) return;
+    const blob = new Blob([currentSvg], { type: 'image/svg+xml' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `leverage-${state.day}-${opts.variant}.svg`;
+    a.click();
+    URL.revokeObjectURL(a.href);
   };
 
   return h(
@@ -121,8 +126,8 @@ export function renderShare(state: AppState): HTMLElement {
       h(
         'div',
         { class: 'band-head' },
-        h('h2', {}, 'Share card'),
-        h('span', { class: 'note' }, 'Generated and saved entirely on this machine.'),
+        h('h2', {}, 'Share'),
+        h('span', { class: 'note' }, 'Rendered and saved on this machine'),
       ),
       h(
         'div',
@@ -130,98 +135,47 @@ export function renderShare(state: AppState): HTMLElement {
         h('div', {}, preview),
         h(
           'div',
-          { class: 'stack' },
+          { class: 'stack', style: { gap: '14px' } },
           h(
             'div',
-            { class: 'panel' },
-            h('h3', {}, 'Variant'),
-            h(
-              'div',
-              { class: 'row' },
-              variantBtn('headline', 'Headline'),
-              variantBtn('timeline', 'Timeline'),
-              variantBtn('projects', 'Projects'),
-              variantBtn('weekly', 'Weekly'),
-            ),
-            h(
-              'div',
-              { class: 'row', style: { marginTop: '14px' } },
-              h(
-                'button',
-                {
-                  class: 'btn',
-                  onclick: () => {
-                    opts.theme = opts.theme === 'dark' ? 'light' : 'dark';
-                    void refreshPreview();
-                  },
-                },
-                'Toggle theme',
-              ),
-            ),
+            { class: 'row' },
+            variantBtn('headline', 'Headline'),
+            variantBtn('timeline', 'Timeline'),
+            variantBtn('projects', 'Projects'),
+            variantBtn('weekly', 'Weekly'),
           ),
           h(
             'div',
-            { class: 'panel' },
-            h('h3', {}, 'Exactly what this exports'),
-            exposure,
+            { class: 'row' },
+            h('button', { class: 'btn btn-primary', onclick: () => void download(2) }, 'PNG 2×'),
+            h('button', { class: 'btn', onclick: () => void download(3) }, 'PNG 3×'),
+            h('button', { class: 'btn', onclick: saveSvg }, 'SVG'),
             h(
-              'label',
-              { class: 'check', style: { marginTop: '12px' } },
-              h('input', {
-                type: 'checkbox',
-                onchange: (e: Event) => {
-                  opts.revealProjects = (e.target as HTMLInputElement).checked;
+              'button',
+              {
+                class: 'btn',
+                onclick: () => {
+                  opts.theme = opts.theme === 'dark' ? 'light' : 'dark';
                   void refreshPreview();
                 },
-              }),
-              h(
-                'span',
-                {},
-                'Show real project names',
-                h(
-                  'small',
-                  {},
-                  'Off by default. Repository names, file paths, prompts, branches, commit messages, and code are never included.',
-                ),
-              ),
+              },
+              'Theme',
             ),
           ),
+          status,
           h(
-            'div',
-            { class: 'panel' },
-            h('h3', {}, 'Export'),
-            h(
-              'div',
-              { class: 'row' },
-              h(
-                'button',
-                { class: 'btn btn-primary', onclick: () => void download(2) },
-                'Save PNG (2×)',
-              ),
-              h('button', { class: 'btn', onclick: () => void download(3) }, 'Save PNG (3×)'),
-              h(
-                'button',
-                {
-                  class: 'btn',
-                  onclick: () => {
-                    const blob = new Blob([currentSvg], { type: 'image/svg+xml' });
-                    const a = document.createElement('a');
-                    a.href = URL.createObjectURL(blob);
-                    a.download = `leverage-${state.day}-${opts.variant}.svg`;
-                    a.click();
-                    URL.revokeObjectURL(a.href);
-                  },
-                },
-                'Save SVG',
-              ),
-            ),
-            status,
-            h(
-              'p',
-              { class: 'faint', style: { fontSize: '11.5px', marginBottom: 0, marginTop: '12px' } },
-              'Cards always use conservative mode, regardless of the mode selected in the header.',
-            ),
+            'label',
+            { class: 'check' },
+            h('input', {
+              type: 'checkbox',
+              onchange: (e: Event) => {
+                opts.revealProjects = (e.target as HTMLInputElement).checked;
+                void refreshPreview();
+              },
+            }),
+            h('span', {}, 'Real project names'),
           ),
+          h('details', { class: 'panel' }, h('summary', {}, 'What this exports'), exposure),
         ),
       ),
     ),

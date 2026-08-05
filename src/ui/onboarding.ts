@@ -94,13 +94,13 @@ export function renderOnboarding(state: AppState, onDone: () => Promise<void>): 
             maxWidth: '20ch',
           },
         },
-        'See how much engineering work you actually produced.',
+        'See what you actually shipped.',
       ),
       h(
         'p',
         { class: 'prose', style: { fontSize: '16px' } },
-        'Leverage reads your Claude Code and Codex sessions, reconstructs the engineering tasks you actually completed, and estimates how long each one would have taken a competent engineer working without AI. ',
-        h('strong', {}, 'It counts what survived — not what was generated.'),
+        'Leverage reads your Claude Code and Codex sessions and estimates how long each finished task would have taken without AI. ',
+        h('strong', {}, 'It counts what survived, not what was generated.'),
       ),
     ),
 
@@ -114,12 +114,7 @@ export function renderOnboarding(state: AppState, onDone: () => Promise<void>): 
           'p',
           {},
           h('strong', {}, 'One conventional engineering hour'),
-          ' is an hour a competent engineer would have needed to produce the same accepted result using a normal workflow: IDE, debugger, docs, Stack Overflow, tests, code review — and no generative AI.',
-        ),
-        h(
-          'p',
-          {},
-          'Work that failed, was reverted, or never got verified is discounted. Conversations that were not software engineering are excluded entirely. Every figure carries a range and a confidence level, and you can open any task to see exactly how it was scored.',
+          ' is an hour a competent engineer would have needed for the same result with a normal workflow and no AI. Failed, reverted, and unverified work is discounted. Every figure carries a range, and any task opens to show its reasoning.',
         ),
       ),
     ),
@@ -133,14 +128,9 @@ export function renderOnboarding(state: AppState, onDone: () => Promise<void>): 
         h(
           'p',
           {},
-          'All processing is local. No account, no API key, no cloud sync, no telemetry, no crash reports. Your transcripts and code never leave this machine, and Leverage only ever ',
-          h('strong', {}, 'reads'),
-          ' — it never modifies, moves, or deletes a Claude Code, Codex, or Git file.',
-        ),
-        h(
-          'p',
-          {},
-          'Secrets, keys, and tokens are redacted as files are read, before anything is stored. Optional semantic analysis is off by default; if you turn it on later, you will see exactly what would be sent.',
+          'No account, no API key, no cloud, no telemetry. Your transcripts and code never leave this machine, your agent and Git files are only ever ',
+          h('strong', {}, 'read'),
+          ', and secrets are redacted before anything is stored.',
         ),
       ),
     ),
@@ -157,12 +147,12 @@ export function renderOnboarding(state: AppState, onDone: () => Promise<void>): 
             h(
               'div',
               {},
-              h('strong', {}, 'No Claude Code or Codex data found. '),
-              'Install either tool and run a session, or set ',
+              h('strong', {}, 'Nothing found. '),
+              'Run a session, or set ',
               h('code', {}, 'CLAUDE_CONFIG_DIR'),
               ' / ',
               h('code', {}, 'CODEX_HOME'),
-              ' if they live elsewhere. You can also explore a clearly-labelled synthetic dataset with ',
+              ' if they live elsewhere. Or try ',
               h('code', {}, 'leverage demo'),
               '.',
             ),
@@ -175,20 +165,20 @@ export function renderOnboarding(state: AppState, onDone: () => Promise<void>): 
       h(
         'label',
         { class: 'field', style: { maxWidth: '320px' } },
-        h('span', {}, 'History window (days)'),
+        h('span', {}, 'History window'),
         h(
           'select',
           { onchange: (e: Event) => (historyDays = Number((e.target as HTMLSelectElement).value)) },
-          h('option', { value: '7' }, 'Last 7 days — fastest'),
+          h('option', { value: '7' }, 'Last 7 days'),
           h('option', { value: '30', selected: true }, 'Last 30 days'),
           h('option', { value: '90' }, 'Last 90 days'),
-          h('option', { value: '0' }, 'Everything — slowest first run'),
+          h('option', { value: '0' }, 'Everything'),
         ),
       ),
       h(
         'p',
         { class: 'faint', style: { fontSize: '12.5px' } },
-        'Later scans are incremental: only new bytes are read, so this cost is paid once.',
+        'Later scans read only new bytes, so this cost is paid once.',
       ),
     ),
 
@@ -217,7 +207,7 @@ export function renderOnboarding(state: AppState, onDone: () => Promise<void>): 
                   h(
                     'span',
                     { style: { color: 'var(--verified)' } },
-                    `${r.lastIngest?.events.toLocaleString() ?? 0} events from ${r.lastIngest?.files ?? 0} files · ${r.lastCompute?.tasks ?? 0} engineering tasks reconstructed`,
+                    `${r.lastIngest?.events.toLocaleString() ?? 0} events · ${r.lastCompute?.tasks ?? 0} tasks`,
                   ),
                 );
                 await onDone();
@@ -227,7 +217,7 @@ export function renderOnboarding(state: AppState, onDone: () => Promise<void>): 
               }
             },
           },
-          anyInstalled ? 'Scan and build my dashboard' : 'Scan anyway',
+          anyInstalled ? 'Scan' : 'Scan anyway',
         ),
         h(
           'button',
@@ -245,7 +235,7 @@ export function renderOnboarding(state: AppState, onDone: () => Promise<void>): 
       h(
         'p',
         { class: 'faint', style: { fontSize: '12px', marginTop: '20px' } },
-        'After the scan, review the first few reconstructed tasks and calibrate one or two — telling Leverage how long a task would really have taken you makes every later estimate more accurate for you specifically.',
+        'Afterwards, calibrate a task or two — telling Leverage how long one really would have taken you sharpens every later estimate.',
       ),
       void api,
     ),

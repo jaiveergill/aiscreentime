@@ -317,19 +317,25 @@ export function createSemanticProvider(db: Db, settings: Settings): SemanticProv
         settings.semanticModel,
         settings.customRedactTerms,
       );
-    case 'local':
+    case 'local': {
+      // A local endpoint speaks the OpenAI wire format, but it must never receive
+      // OpenAI's credentials. `apiKeyEnv` is dropped so no key is ever read, and
+      // `headers` is replaced so no `authorization` header can be constructed even
+      // if one were. Spreading OPENAI wholesale would inherit both.
+      const { apiKeyEnv: _drop, ...wire } = OPENAI;
       return new HttpSemanticProvider(
         {
-          ...OPENAI,
+          ...wire,
           id: 'local',
           isLocal: true,
           endpoint: `${settings.semanticLocalBaseUrl.replace(/\/$/, '')}/chat/completions`,
-          ...(OPENAI.apiKeyEnv ? {} : {}),
+          headers: () => ({ 'content-type': 'application/json' }),
         },
         db,
         settings.semanticModel,
         settings.customRedactTerms,
       );
+    }
     default:
       return undefined;
   }
@@ -340,5 +346,3 @@ export function listExternalRequests(db: Db, limit = 100): Record<string, unknow
     .prepare('SELECT * FROM external_requests ORDER BY ts DESC LIMIT ?')
     .all(limit) as Record<string, unknown>[];
 }
-
-export { SYSTEM_PROMPT };

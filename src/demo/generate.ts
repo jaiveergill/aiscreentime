@@ -87,81 +87,6 @@ function file(
   };
 }
 
-export interface DemoScenario {
-  readonly key: string;
-  readonly description: string;
-  readonly expect: {
-    readonly becomesTask: boolean;
-    readonly category?: string;
-    readonly status?: string;
-    /** Ordering constraint: this scenario's verified hours must exceed these. */
-    readonly moreThan?: readonly string[];
-  };
-}
-
-export const DEMO_SCENARIOS: DemoScenario[] = [
-  {
-    key: 'feature-tested',
-    description: 'Password reset feature, 6 files, tests written and passing',
-    expect: {
-      becomesTask: true,
-      status: 'completed-validated',
-      moreThan: ['bugfix', 'research', 'failed'],
-    },
-  },
-  {
-    key: 'bugfix',
-    description: 'Subtle off-by-one fix, 1 file, 4 errors, tests pass',
-    expect: { becomesTask: true, status: 'completed-validated' },
-  },
-  {
-    key: 'refactor',
-    description: 'Extract parser module, balanced add/remove',
-    expect: { becomesTask: true, category: 'refactoring' },
-  },
-  {
-    key: 'research',
-    description: 'Read the auth subsystem to understand token flow',
-    expect: { becomesTask: true, category: 'research', status: 'exploratory' },
-  },
-  {
-    key: 'failed',
-    description: 'Attempted websocket layer, tests never pass',
-    expect: { becomesTask: true, status: 'partial' },
-  },
-  {
-    key: 'reverted',
-    description: 'Cache layer added then reverted',
-    expect: { becomesTask: true },
-  },
-  {
-    key: 'cross-provider',
-    description: 'Migration started in Codex, finished in Claude Code',
-    expect: { becomesTask: true },
-  },
-  {
-    key: 'human-edited',
-    description: 'Agent change plus direct human edits to the same files',
-    expect: { becomesTask: true },
-  },
-  {
-    key: 'concurrent-a',
-    description: 'Runs at the same time as concurrent-b',
-    expect: { becomesTask: true },
-  },
-  {
-    key: 'concurrent-b',
-    description: 'Runs at the same time as concurrent-a',
-    expect: { becomesTask: true },
-  },
-  { key: 'chat', description: 'Non-engineering conversation', expect: { becomesTask: false } },
-  {
-    key: 'boilerplate',
-    description: 'Large generated scaffold, no tests',
-    expect: { becomesTask: true },
-  },
-];
-
 /** Build the full synthetic event set. Deterministic across runs. */
 export function generateDemoEvents(baseTs = DEMO_BASE): NormalizedEvent[] {
   seq = 0;
@@ -746,8 +671,4 @@ export function installDemoData(db: Db, baseTs?: number): number {
 
   db.setConfig('demoInstalled', { at: Date.now(), events: events.length });
   return events.length;
-}
-
-export function isDemoInstalled(db: Db): boolean {
-  return db.getConfig<{ at: number } | null>('demoInstalled', null) !== null;
 }

@@ -30,10 +30,18 @@ export class Db {
 
   constructor(opts: OpenOptions = {}) {
     this.dir = opts.dir ?? leverageHome();
-    fs.mkdirSync(this.dir, { recursive: true });
+    // Owner-only: this database holds transcript excerpts, absolute repo paths
+    // and task titles. On a shared machine the default umask would leave it
+    // world-readable.
+    fs.mkdirSync(this.dir, { recursive: true, mode: 0o700 });
     this.file = path.join(this.dir, opts.filename ?? 'leverage.db');
     this.handle = new DatabaseSync(this.file, { readOnly: opts.readOnly ?? false });
     if (!opts.readOnly) {
+      try {
+        fs.chmodSync(this.file, 0o600);
+      } catch {
+        /* best effort: a pre-existing file on a filesystem without chmod */
+      }
       // WAL keeps the dashboard readable while ingestion writes.
       this.handle.exec('PRAGMA journal_mode = WAL');
       this.handle.exec('PRAGMA synchronous = NORMAL');

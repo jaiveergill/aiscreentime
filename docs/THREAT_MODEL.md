@@ -151,7 +151,8 @@ The product cannot stop someone lying, but it must not help:
 - Failed, reverted, and superseded work is discounted to near zero.
 - Estimates above 12 hours with weak evidence are heavily discounted, flagged,
   and have their confidence cut.
-- Share cards always use conservative mode.
+- Every estimate carries the same flat 20% discount. There is no mode to pick,
+  so there is no flattering one to pick.
 - User-edited estimates are labelled as edited wherever they appear, including in
   exports, and every override is retained as an audit trail.
 

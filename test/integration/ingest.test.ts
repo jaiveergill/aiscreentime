@@ -70,10 +70,10 @@ describe('storage', () => {
     const dir = tmpDir();
     try {
       const db = new Db({ dir });
-      assert.equal(loadSettings(db).mode, 'conservative');
-      saveSettings(db, { mode: 'balanced', excludedRepos: ['/x'] });
+      assert.equal(loadSettings(db).historyDays, 30);
+      saveSettings(db, { historyDays: 45, excludedRepos: ['/x'] });
       const s = loadSettings(db);
-      assert.equal(s.mode, 'balanced');
+      assert.equal(s.historyDays, 45);
       assert.deepEqual(s.excludedRepos, ['/x']);
       assert.equal(s.redactMode, 'standard', 'unspecified keys keep their defaults');
       db.close();
@@ -445,7 +445,7 @@ describe('ingest → derive → metrics', () => {
       const days = activeDays(db);
       assert.ok(days.includes('2026-05-12'));
 
-      const m = computeDayMetrics(db, '2026-05-12', 'conservative', s);
+      const m = computeDayMetrics(db, '2026-05-12', s);
       assert.ok(m.verifiedHours.median > 0);
       assert.ok(m.verifiedHours.p10 < m.verifiedHours.median);
       assert.ok(m.verifiedHours.median < m.verifiedHours.p90);
@@ -460,7 +460,6 @@ describe('ingest → derive → metrics', () => {
       const est = loadEstimates(
         db,
         tasks.map((t) => t.taskId),
-        'conservative',
       );
       assert.equal(est.size, tasks.length, 'every task has an estimate');
       db.close();
@@ -486,9 +485,9 @@ describe('ingest → derive → metrics', () => {
       await ingest(db, { collectors: collectors(home, codex), settings: s });
 
       computeDerived(db, { settings: s });
-      const a = computeDayMetrics(db, '2026-05-12', 'conservative', s);
+      const a = computeDayMetrics(db, '2026-05-12', s);
       computeDerived(db, { settings: s });
-      const b = computeDayMetrics(db, '2026-05-12', 'conservative', s);
+      const b = computeDayMetrics(db, '2026-05-12', s);
 
       assert.equal(a.taskCount, b.taskCount);
       assert.equal(a.verifiedHours.median, b.verifiedHours.median);
@@ -521,7 +520,7 @@ describe('ingest → derive → metrics', () => {
         .run(task.taskId, 7.5, Date.now());
       computeDerived(db, { settings: s });
 
-      const est = loadEstimates(db, [task.taskId], 'conservative').get(task.taskId);
+      const est = loadEstimates(db, [task.taskId]).get(task.taskId);
       assert.equal(est?.verified.median, 7.5);
       assert.equal(est?.userOverrideHours, 7.5);
       assert.equal(est?.factors[0]?.epistemics, 'user-corrected');
@@ -554,7 +553,7 @@ describe('ingest → derive → metrics', () => {
       const s = settings();
       await ingest(db, { collectors: collectors(home, codex), settings: s });
       computeDerived(db, { settings: s });
-      const before = computeDayMetrics(db, '2026-05-12', 'conservative', s);
+      const before = computeDayMetrics(db, '2026-05-12', s);
       assert.ok(before.taskCount >= 2);
 
       const first = loadTasksForDay(db, '2026-05-12')[0];
@@ -562,7 +561,7 @@ describe('ingest → derive → metrics', () => {
         .prepare('INSERT INTO task_overrides (task_id, excluded, updated_at) VALUES (?,1,?)')
         .run(first?.taskId, Date.now());
       computeDerived(db, { settings: s });
-      const after = computeDayMetrics(db, '2026-05-12', 'conservative', s);
+      const after = computeDayMetrics(db, '2026-05-12', s);
 
       assert.equal(after.taskCount, before.taskCount - 1);
       assert.ok(after.verifiedHours.median < before.verifiedHours.median);
@@ -596,12 +595,12 @@ describe('ingest → derive → metrics', () => {
       const s = settings();
       await ingest(db, { collectors: collectors(home, codex), settings: s });
       computeDerived(db, { settings: s });
-      const before = computeDayMetrics(db, '2026-05-12', 'conservative', s);
+      const before = computeDayMetrics(db, '2026-05-12', s);
       assert.ok(before.taskCount > 0);
 
       const excluded = settings({ excludedRepos: [fs.realpathSync(repo)] });
       computeDerived(db, { settings: excluded });
-      const after = computeDayMetrics(db, '2026-05-12', 'conservative', excluded);
+      const after = computeDayMetrics(db, '2026-05-12', excluded);
       assert.equal(after.taskCount, 0, 'excluding the repository removes its work entirely');
       db.close();
     } finally {
@@ -747,26 +746,25 @@ describe('cached metric shape versioning', () => {
       // Simulate a row written by an older build that lacked several fields.
       db.handle
         .prepare(
-          'INSERT INTO day_metrics (day_key, benchmark_version, mode, payload, computed_at) VALUES (?,?,?,?,?)',
+          'INSERT INTO day_metrics (day_key, benchmark_version, payload, computed_at) VALUES (?,?,?,?)',
         )
         .run(
           '2026-05-12',
           BENCHMARK_VERSION,
-          'conservative',
           JSON.stringify({ dayKey: '2026-05-12', steeringMs: 1000 }),
           Date.now(),
         );
       assert.equal(
-        loadDayMetrics(db, '2026-05-12', 'conservative'),
+        loadDayMetrics(db, '2026-05-12'),
         undefined,
         'an unversioned payload must not be served',
       );
 
       // A current-shape row round-trips.
       const s = settings();
-      const fresh = computeDayMetrics(db, '2026-05-12', 'conservative', s);
+      const fresh = computeDayMetrics(db, '2026-05-12', s);
       assert.equal(fresh.shapeVersion, METRICS_SHAPE_VERSION);
-      const loaded = loadDayMetrics(db, '2026-05-12', 'conservative');
+      const loaded = loadDayMetrics(db, '2026-05-12');
       assert.ok(loaded);
       assert.equal(loaded?.shapeVersion, METRICS_SHAPE_VERSION);
       assert.equal(typeof loaded?.llmMs, 'number');

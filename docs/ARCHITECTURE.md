@@ -151,7 +151,7 @@ One SQLite file, WAL mode, at `~/.leverage/leverage.db` (override with
 | `repos` | yes | Discovered projects |
 | `tasks` | yes | Reconstructed tasks |
 | `task_events` | yes | Task ↔ event membership |
-| `estimates` | yes | Per task, per benchmark version, per mode |
+| `estimates` | yes | Per task, per benchmark version |
 | `day_metrics` | yes | Cached day aggregates |
 | `task_overrides` | **user-owned** | Corrections |
 | `calibrations` | **user-owned** | Personal baseline |

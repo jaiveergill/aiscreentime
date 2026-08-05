@@ -1,14 +1,12 @@
 import {
   api,
   confidence,
-  fmtBytes,
   fmtDayLong,
   fmtDayShort,
   fmtDuration,
   fmtHours,
   fmtHoursShort,
   fmtMultiplier,
-  fmtTime,
   h,
   mount,
   post,
@@ -41,7 +39,6 @@ export interface AppState {
     | 'share'
     | 'onboarding';
   day: string;
-  mode: 'conservative' | 'balanced' | 'upper-range';
   status: StatusPayload | null;
   dayData: DayPayload | null;
   timeline: StripData | null;
@@ -92,7 +89,6 @@ export interface Dist {
 export interface DayMetrics {
   dayKey: string;
   benchmarkVersion: string;
-  mode: string;
   verifiedHours: Dist;
   acceptedHours: Dist;
   grossHours: Dist;
@@ -160,7 +156,6 @@ export interface EstimatePayload {
   }[];
   uncertaintyNotes: string[];
   benchmarkVersion: string;
-  mode: string;
   calibrated: boolean;
   semanticUsed: boolean;
   userOverrideHours?: number;
@@ -168,7 +163,6 @@ export interface EstimatePayload {
 
 export interface DayPayload {
   day: string;
-  mode: string;
   metrics: DayMetrics;
   repos: Record<string, string>;
   tasks: TaskRow[];
@@ -187,7 +181,6 @@ export interface TrendPoint {
 const state: AppState = {
   route: 'day',
   day: todayKey(),
-  mode: 'conservative',
   status: null,
   dayData: null,
   timeline: null,
@@ -251,8 +244,6 @@ window.addEventListener('hashchange', () => {
 
 async function loadStatus(): Promise<void> {
   state.status = await api<StatusPayload>('/api/status');
-  const s = state.status.settings as { mode?: AppState['mode'] };
-  if (s.mode) state.mode = s.mode;
   // Land on a day that actually has data. Opening on an empty "today" makes
   // the product look broken when the user simply has not worked yet.
   const days = state.status.days;
@@ -266,9 +257,9 @@ let explicitDay = false;
 
 async function loadDay(): Promise<void> {
   const [day, timeline, trendRes] = await Promise.all([
-    api<DayPayload>(`/api/day/${state.day}?mode=${state.mode}`),
+    api<DayPayload>(`/api/day/${state.day}`),
     api<StripData>(`/api/timeline/${state.day}`),
-    api<{ trend: TrendPoint[] }>(`/api/trend?days=14&mode=${state.mode}`),
+    api<{ trend: TrendPoint[] }>('/api/trend?days=14'),
   ]);
   state.dayData = day;
   state.timeline = timeline;
@@ -386,21 +377,6 @@ function topbar(): HTMLElement {
       'div',
       { class: 'topbar-right' },
       h(
-        'select',
-        {
-          class: 'select',
-          'aria-label': 'Estimate mode',
-          title: 'Conservative is the default and the only mode used on share cards.',
-          onchange: (e: Event) => {
-            state.mode = (e.target as HTMLSelectElement).value as AppState['mode'];
-            void refresh();
-          },
-        },
-        ...(['conservative', 'balanced', 'upper-range'] as const).map((m) =>
-          h('option', { value: m, selected: m === state.mode }, m),
-        ),
-      ),
-      h(
         'button',
         {
           class: 'icon-btn',
@@ -469,7 +445,7 @@ function heroCard(m: DayMetrics, day: DayPayload): HTMLElement {
       h('br', {}),
       'in ',
       h('b', {}, fmtDuration(m.steeringMs)),
-      ' of your time',
+      ' of yours',
     ),
     h('div', { class: 'hero-lev' }, ICONS.pulse(), `${fmtMultiplier(m.outputLeverage)} leverage`),
     h(
@@ -486,13 +462,13 @@ function heroCard(m: DayMetrics, day: DayPayload): HTMLElement {
         fmtHoursShort(m.llmMs),
         'LLM hours',
         'blue',
-        'Machine time: model runtime summed across every concurrent agent. Fifteen agents busy for an hour is fifteen LLM hours, so this can exceed the length of the day.',
+        'Model runtime summed across concurrent agents, so it can exceed the length of the day.',
       ),
       stat(
         fmtHoursShort(m.steeringMs),
         'your time',
         'white',
-        `Human time: ${fmtHoursShort(m.promptingMs)} writing instructions plus ${fmtHoursShort(Math.max(0, m.steeringMs - m.promptingMs))} reading and reviewing. Counted once no matter how many agents ran at the same time.`,
+        `${fmtHoursShort(m.promptingMs)} prompting, ${fmtHoursShort(Math.max(0, m.steeringMs - m.promptingMs))} reviewing. Counted once however many agents ran at the same time.`,
       ),
       stat(String(done), 'tasks completed'),
       stat(String(m.peakConcurrency), 'peak agents'),
@@ -507,7 +483,7 @@ function timelineCard(): HTMLElement {
     h(
       'div',
       { class: 'card-head' },
-      h('h2', {}, "Today's timeline"),
+      h('h2', {}, 'Timeline'),
       h('span', { class: 'note' }, 'Agents ran while you were elsewhere'),
     ),
     h(
@@ -545,9 +521,9 @@ function railSummary(m: DayMetrics): HTMLElement {
   return h(
     'section',
     { class: 'card' },
-    h('h3', {}, "Today's summary"),
+    h('h3', {}, 'Summary'),
     row('LLM hours', fmtHoursShort(m.llmMs), 'blue'),
-    h('p', { class: 'rail-note' }, `machine time across ${m.peakConcurrency} agents at peak`),
+    h('p', { class: 'rail-note' }, `peak ${m.peakConcurrency} agents`),
     rule(),
     row('Your time', fmtHoursShort(m.steeringMs), 'white'),
     sub('prompting', fmtHoursShort(m.promptingMs)),
@@ -588,7 +564,7 @@ function railTopTask(day: DayPayload): HTMLElement | null {
   return h(
     'section',
     { class: 'card' },
-    h('h3', {}, 'Top completed task'),
+    h('h3', {}, 'Top task'),
     h(
       'div',
       { class: 'top-task' },
@@ -633,13 +609,7 @@ function railRecent(day: DayPayload): HTMLElement {
       ),
     ),
     ...(recent.length === 0
-      ? [
-          h(
-            'p',
-            { class: 'faint', style: { fontSize: '12.5px', margin: 0 } },
-            'No engineering tasks today.',
-          ),
-        ]
+      ? [h('p', { class: 'faint', style: { fontSize: '12.5px', margin: 0 } }, 'Nothing yet.')]
       : recent.map((t) =>
           h(
             'button',
@@ -654,19 +624,19 @@ function railRecent(day: DayPayload): HTMLElement {
 
 function railShare(): HTMLElement {
   const img = h('img', {
-    src: `/api/share/${state.day}?variant=headline&theme=dark&mode=conservative`,
+    src: `/api/share/${state.day}?variant=headline&theme=dark`,
     alt: 'Share card preview',
   });
   return h(
     'section',
     { class: 'card' },
-    h('h3', {}, 'Share your day'),
+    h('h3', {}, 'Share'),
     h('div', { class: 'share-mini' }, img),
     h(
       'button',
       { class: 'btn-wide', onclick: () => navigate(`/share/${state.day}`) },
       ICONS.share(),
-      'Generate card',
+      'Make a card',
     ),
   );
 }
@@ -733,10 +703,6 @@ export function closeTask(): void {
 export async function reloadDay(): Promise<void> {
   await loadDay();
   render();
-}
-
-export function getState(): AppState {
-  return state;
 }
 
 /* ------------------------------------------------------------------ */
@@ -843,11 +809,11 @@ function taskTable(day: DayPayload): HTMLElement {
     return h(
       'div',
       { class: 'empty' },
-      h('h3', {}, 'No engineering tasks on this day'),
+      h('h3', {}, 'No engineering tasks'),
       h(
         'p',
         {},
-        'Leverage only counts software-engineering work. Conversations that changed no files, ran no commands, and touched no repository are excluded — you can see how many in Collector.',
+        'Conversations that changed no files, ran no commands, and touched no repository are excluded. Collector shows how many.',
       ),
     );
   }
@@ -961,7 +927,7 @@ function fullTimeline(): HTMLElement {
         'div',
         { class: 'card-head' },
         h('h2', {}, 'Full timeline'),
-        h('span', { class: 'note' }, 'One channel per session — you are the top channel'),
+        h('span', { class: 'note' }, 'One channel per session; you are on top'),
       ),
       h(
         'div',
@@ -1046,7 +1012,7 @@ function tasksView(): HTMLElement {
         'div',
         { class: 'card-head' },
         h('h2', {}, `Tasks (${day.tasks.filter((t) => !t.excluded).length})`),
-        h('span', { class: 'note' }, 'Select a row to see why it was credited what it was'),
+        h('span', { class: 'note' }, 'Open a row for its reasoning'),
       ),
       taskTable(day),
     ),
@@ -1088,7 +1054,7 @@ function render(): void {
   );
 
   if (state.openTaskId) {
-    root.appendChild(renderTaskDrawer(state.openTaskId, state.mode, closeTask, reloadDay));
+    root.appendChild(renderTaskDrawer(state.openTaskId, closeTask, reloadDay));
   }
 }
 
@@ -1125,5 +1091,3 @@ setInterval(async () => {
     /* server not reachable; keep the last known state */
   }
 }, 4000);
-
-export { fmtHours, fmtDuration, fmtMultiplier, fmtTime, tag, confidence, fmtBytes };

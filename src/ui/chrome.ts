@@ -128,7 +128,7 @@ export function sidebar(active: string, go: (hash: string) => void): HTMLElement
         'div',
         { class: 'side-privacy' },
         h('b', {}, 'All data is local'),
-        h('span', {}, 'Your transcripts and code never leave this machine.'),
+        h('span', {}, 'Nothing leaves this machine.'),
       ),
     ),
   );

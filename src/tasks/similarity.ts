@@ -237,10 +237,6 @@ export function similarity(a: Map<string, number>, b: Map<string, number>): numb
   return union === 0 ? 0 : inter / union;
 }
 
-export function textSimilarity(a: string, b: string): number {
-  return similarity(tokenWeights(a), tokenWeights(b));
-}
-
 /**
  * Weighted containment: how much of the *shorter* text's vocabulary appears in
  * the longer one.

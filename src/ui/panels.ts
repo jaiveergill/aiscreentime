@@ -29,14 +29,7 @@ export function renderSettings(
   const save = async (patch: Record<string, unknown>): Promise<void> => {
     try {
       await post('/api/settings', patch);
-      mount(
-        feedback,
-        h(
-          'span',
-          { style: { color: 'var(--verified)' } },
-          'Saved. Affected numbers were recalculated.',
-        ),
-      );
+      mount(feedback, h('span', { style: { color: 'var(--verified)' } }, 'Saved.'));
       await reload();
     } catch (err) {
       mount(feedback, h('span', { style: { color: 'var(--fail)' } }, String(err)));
@@ -106,7 +99,7 @@ export function renderSettings(
             h(
               'label',
               { class: 'field' },
-              h('span', {}, 'History window (days, 0 = everything)'),
+              h('span', {}, 'History window (days, 0 = all)'),
               h('input', {
                 type: 'number',
                 min: '0',
@@ -117,21 +110,6 @@ export function renderSettings(
             ),
             h(
               'label',
-              { class: 'field' },
-              h('span', {}, 'Default estimate mode'),
-              h(
-                'select',
-                {
-                  onchange: (e: Event) =>
-                    void save({ mode: (e.target as HTMLSelectElement).value }),
-                },
-                ...['conservative', 'balanced', 'upper-range'].map((m) =>
-                  h('option', { value: m, selected: m === s['mode'] }, m),
-                ),
-              ),
-            ),
-            h(
-              'label',
               { class: 'check' },
               h('input', {
                 type: 'checkbox',
@@ -139,7 +117,7 @@ export function renderSettings(
                 onchange: (e: Event) =>
                   void save({ paused: (e.target as HTMLInputElement).checked }),
               }),
-              h('span', {}, 'Pause collection', h('small', {}, 'No files are read while paused.')),
+              h('span', {}, 'Pause collection'),
             ),
           ),
         ),
@@ -163,7 +141,7 @@ export function renderSettings(
         'div',
         { class: 'card-head' },
         h('h2', {}, 'Privacy'),
-        h('span', { class: 'note' }, 'Everything below happens on this machine'),
+        h('span', { class: 'note' }, 'All of it local'),
       ),
       h(
         'div',
@@ -177,8 +155,8 @@ export function renderSettings(
             h('h3', {}, 'Redaction'),
             h(
               'p',
-              { class: 'prose', style: { fontSize: '12.5px', marginTop: '-4px' } },
-              'Applied when transcripts are read, before anything is written to disk. Secret values are never stored, not even to prove they were found. Redaction is best-effort and should not be relied on as a guarantee.',
+              { class: 'faint', style: { fontSize: '12px', marginTop: '-4px' } },
+              'Applied as transcripts are read, before anything is stored. Best-effort, not a guarantee.',
             ),
             h(
               'label',
@@ -205,7 +183,7 @@ export function renderSettings(
             h(
               'label',
               { class: 'field' },
-              h('span', {}, 'Additional terms to scrub (comma separated)'),
+              h('span', {}, 'Extra terms to scrub'),
               h('input', {
                 type: 'text',
                 value: ((s['customRedactTerms'] as string[]) ?? []).join(', '),
@@ -222,7 +200,7 @@ export function renderSettings(
             h(
               'p',
               { class: 'faint', style: { fontSize: '11.5px', marginBottom: 0 } },
-              'Changing this re-processes stored text on the next scan. Already-stored text is not retroactively re-redacted — use "Delete everything" if that matters.',
+              'Future scans only. Already-stored text is not re-redacted.',
             ),
           ),
           h(
@@ -231,8 +209,8 @@ export function renderSettings(
             h('h3', {}, 'Semantic analysis'),
             h(
               'p',
-              { class: 'prose', style: { fontSize: '12.5px', marginTop: '-4px' } },
-              'Optional. Off by default. When on, a language model sees only: task category, integer counts, and a strict-redacted 600-character summary. Never source code, diffs, transcripts, paths, or repository names. Its influence on any estimate is clamped to ±60% and it never sets an estimate alone.',
+              { class: 'faint', style: { fontSize: '12px', marginTop: '-4px' } },
+              'Off by default. A model sees the category, integer counts, and a redacted 600-character summary — never code, diffs, paths, or repository names. Its effect is clamped to ±60%.',
             ),
             h(
               'label',
@@ -243,7 +221,7 @@ export function renderSettings(
                 onchange: (e: Event) =>
                   void save({ semanticEnabled: (e.target as HTMLInputElement).checked }),
               }),
-              h('span', {}, 'Enable semantic task understanding'),
+              h('span', {}, 'Enable'),
             ),
             h(
               'label',
@@ -287,7 +265,7 @@ export function renderSettings(
             h(
               'label',
               { class: 'field' },
-              h('span', {}, 'Local server base URL'),
+              h('span', {}, 'Local base URL'),
               h('input', {
                 type: 'text',
                 value: String(s['semanticLocalBaseUrl'] ?? ''),
@@ -311,7 +289,7 @@ export function renderSettings(
                       h(
                         'span',
                         {},
-                        `Semantic pass: ${r.applied} of ${r.requested} tasks adjusted. ${r.reason ?? ''}`,
+                        `${r.applied} of ${r.requested} tasks adjusted. ${r.reason ?? ''}`,
                       ),
                     );
                     await reload();
@@ -320,7 +298,7 @@ export function renderSettings(
                   }
                 },
               },
-              'Run semantic pass on the last 7 days',
+              'Run on the last 7 days',
             ),
           ),
         ),
@@ -350,7 +328,7 @@ export function renderSettings(
             h(
               'label',
               { class: 'field', style: { marginTop: '12px' } },
-              h('span', {}, 'Delete events older than (days, 0 = keep everything)'),
+              h('span', {}, 'Delete events older than (days, 0 = keep all)'),
               h('input', {
                 type: 'number',
                 min: '0',
@@ -358,7 +336,7 @@ export function renderSettings(
                 onchange: async (e: Event) => {
                   const days = Number((e.target as HTMLInputElement).value);
                   const r = await post<{ deleted: number }>('/api/privacy/retention', { days });
-                  mount(feedback, h('span', {}, `Retention set. ${r.deleted} old events deleted.`));
+                  mount(feedback, h('span', {}, `${r.deleted} events deleted.`));
                   await reload();
                 },
               }),
@@ -423,7 +401,7 @@ export function renderSettings(
             h(
               'p',
               { class: 'faint', style: { fontSize: '11.5px', marginTop: '12px', marginBottom: 0 } },
-              'Leverage never modifies, moves, or deletes Claude Code, Codex, or Git files. It only reads them.',
+              'Your Claude Code, Codex, and Git files are only ever read.',
             ),
           ),
         ),
@@ -439,11 +417,7 @@ function repoList(
   save: (patch: Record<string, unknown>) => Promise<void>,
 ): HTMLElement {
   if (repos.length === 0) {
-    return h(
-      'p',
-      { class: 'faint', style: { fontSize: '12.5px' } },
-      'No repositories discovered yet. Run a scan first.',
-    );
+    return h('p', { class: 'faint', style: { fontSize: '12.5px' } }, 'None found yet. Run a scan.');
   }
   const excludedRoots = new Set(repos.filter((r) => r.excluded).map((r) => r.root));
   return h(
@@ -503,11 +477,7 @@ export function renderDiagnostics(state: AppState): HTMLElement {
         'div',
         { class: 'band-head' },
         h('h2', {}, 'Collector'),
-        h(
-          'span',
-          { class: 'note' },
-          'Exactly what was read, what was parsed, and what was skipped.',
-        ),
+        h('span', { class: 'note' }, 'What was read, parsed, and skipped'),
       ),
       slot,
     ),
@@ -534,7 +504,7 @@ function diagnosticsBody(d: Record<string, unknown>): HTMLElement {
       h(
         'div',
         { class: 'panel' },
-        h('h3', {}, 'Directories being watched'),
+        h('h3', {}, 'Watched directories'),
         h(
           'div',
           { class: 'stack', style: { gap: '3px' } },
@@ -545,7 +515,7 @@ function diagnosticsBody(d: Record<string, unknown>): HTMLElement {
         h(
           'p',
           { class: 'faint', style: { fontSize: '11.5px', marginBottom: 0, marginTop: '10px' } },
-          'Nothing outside these directories is read. Leverage does not scan your home directory.',
+          'Nothing outside these is read.',
         ),
       ),
       h(
@@ -556,9 +526,9 @@ function diagnosticsBody(d: Record<string, unknown>): HTMLElement {
           ? h(
               'p',
               { class: 'muted', style: { fontSize: '12.5px', margin: 0 } },
-              'No transcripts have been parsed yet. Run a scan, or load the demo dataset with ',
+              'Nothing parsed yet. Run a scan, or try ',
               h('code', {}, 'leverage demo'),
-              ' (demo events are synthetic and bypass the parsers).',
+              '.',
             )
           : null,
         ...health.map((hh) => {
@@ -604,7 +574,7 @@ function diagnosticsBody(d: Record<string, unknown>): HTMLElement {
               ? h(
                   'p',
                   { style: { fontSize: '12px', color: 'var(--warn)', marginBottom: 0 } },
-                  'Unsupported record types (skipped, not counted): ',
+                  'Skipped, unsupported: ',
                   h(
                     'span',
                     { class: 'mono' },
@@ -616,7 +586,7 @@ function diagnosticsBody(d: Record<string, unknown>): HTMLElement {
               : h(
                   'p',
                   { class: 'faint', style: { fontSize: '11.5px', marginBottom: 0 } },
-                  'Every record type in these files is understood.',
+                  'Every record type understood.',
                 ),
           );
         }),
@@ -637,20 +607,16 @@ function diagnosticsBody(d: Record<string, unknown>): HTMLElement {
             h(
               'p',
               { class: 'faint', style: { fontSize: '11.5px', marginBottom: 0 } },
-              'Coding agents are general assistants. Segments that changed no source files, ran no commands, and touched no repository are excluded from every total — they have no conventional engineering equivalent.',
+              'Segments that changed no files, ran no commands, and touched no repository have no conventional engineering equivalent.',
             ),
           )
         : null,
       h(
         'div',
         { class: 'panel' },
-        h('h3', {}, 'Outbound network requests'),
+        h('h3', {}, 'Outbound requests'),
         external.length === 0
-          ? h(
-              'p',
-              { class: 'muted', style: { fontSize: '12.5px', margin: 0 } },
-              'None. Leverage has never sent anything off this machine.',
-            )
+          ? h('p', { class: 'muted', style: { fontSize: '12.5px', margin: 0 } }, 'None, ever.')
           : h(
               'div',
               { class: 'stack', style: { gap: '6px' } },
@@ -706,7 +672,7 @@ function diagnosticsBody(d: Record<string, unknown>): HTMLElement {
           ? h(
               'p',
               { class: 'muted', style: { fontSize: '12.5px', margin: 0 } },
-              'No source files tracked yet. Press Rescan to read your Claude Code and Codex sessions.',
+              'None tracked yet. Press Rescan.',
             )
           : null,
         h(
@@ -778,19 +744,14 @@ export function renderMethodology(state: AppState): HTMLElement {
           'p',
           {},
           h('strong', {}, 'Conventional engineering hours'),
-          ' are the estimated time a competent software engineer would have needed to produce ',
+          ' are what a competent engineer would have needed for ',
           h('strong', {}, 'the same accepted outcome'),
-          ' using a normal development workflow, without generative-AI assistants or coding agents.',
+          ' with an IDE, debugger, docs, tests, and code review — but no AI.',
         ),
         h(
           'p',
           {},
-          'The comparison engineer has a modern IDE, a debugger, terminal tooling, documentation, search engines, Stack Overflow, package managers, test frameworks, linters, compilers, deterministic automation, and normal code review. They do not have ChatGPT, Claude, Copilot, Cursor, Codex, AI-generated code, or autonomous agents.',
-        ),
-        h(
-          'p',
-          {},
-          'This is not a claim about wages, headcount, or economic value, and it is not "working like it is 1995". It is a counterfactual workflow, approximately representative of competent development before generative coding tools became normal.',
+          'Not a claim about wages, headcount, or economic value. A counterfactual workflow, roughly how competent development looked before generative coding tools.',
         ),
       ),
     ),
@@ -820,31 +781,31 @@ function methodologyBody(m: Record<string, unknown>): HTMLElement {
             'p',
             {},
             h('strong', {}, '1. Tasks, not prompts.'),
-            ' Sessions are split where the work demonstrably changed — a long idle gap, or an instruction that is both unrelated in wording and lands in different files. Segments are then merged across sessions and providers when they share a repository and either several changed files or closely related instructions. A correction stays attached to the task it corrects.',
+            ' Sessions split where the work demonstrably changed: a long idle gap, or an instruction unrelated in wording that lands in different files. Segments merge across sessions and providers when they share a repository and either several changed files or closely related instructions.',
           ),
           h(
             'p',
             {},
             h('strong', {}, '2. Only engineering counts.'),
-            ' Coding agents answer all kinds of questions. A segment must show positive evidence of software engineering — source files changed, commands run, a repository involved — before it becomes a task at all. Everything else is excluded from every total and counted in Data.',
+            ' A segment needs positive evidence — files changed, commands run, a repository involved — before it becomes a task. Everything else is excluded and counted in Collector.',
           ),
           h(
             'p',
             {},
             h('strong', {}, '3. Outcome before output.'),
-            ' Each task is verified from evidence: do the files still exist, did tests pass after the last edit, was it committed, was it reverted, did you interrupt it. Agent self-reports are evidence, never proof, and can never alone produce a validated status.',
+            ' Do the files still exist, did tests pass after the last edit, was it committed, was it reverted. Agent self-reports are evidence, never proof.',
           ),
           h(
             'p',
             {},
             h('strong', {}, '4. A distribution, not a number.'),
-            ' A category prior supplies a lognormal starting distribution — lognormal because software effort is consistently found to be right-skewed. Bounded, named multipliers adjust its median from structural evidence. Nothing is ever tokens × k, lines × k, or runtime × k; those appear only as heavily sublinear complexity signals.',
+            ' A category prior supplies a lognormal start — software effort is reliably right-skewed. Bounded, named multipliers move its median. Never tokens × k, lines × k, or runtime × k; those are heavily sublinear signals only.',
           ),
           h(
             'p',
             {},
             h('strong', {}, '5. Three quantities, never conflated.'),
-            ' Gross is what the intended outcome would have cost. Accepted is gross scaled by how much was actually produced. Verified is accepted scaled by how strongly it was validated. The headline uses verified.',
+            ' Gross is the intended outcome. Accepted scales it by what was produced. Verified scales that by how strongly it was validated, and is the headline.',
           ),
         ),
         h(
@@ -860,19 +821,14 @@ function methodologyBody(m: Record<string, unknown>): HTMLElement {
               h(
                 'p',
                 { style: { marginTop: 0 } },
-                "A person is modelled as present in bounded windows around each observable action: composing an instruction, the moments just after acting, and reading an agent's output once a turn ends. Windows are capped and further bounded by real conversational gaps.",
-              ),
-              h(
-                'p',
-                {},
-                'The windows are then ',
-                h('strong', {}, 'unioned across all sessions'),
-                '. That is what stops four concurrent agents from producing four hours of human time in one hour. Unattended agent execution, idle terminals, and background processes contribute nothing.',
+                'You are modelled as present in bounded windows around each observable action: composing an instruction, the moments after acting, and reading output once a turn ends.',
               ),
               h(
                 'p',
                 { style: { marginBottom: 0 } },
-                'Because the caps are the model, three parameterisations are computed and a range is shown rather than one falsely precise figure.',
+                'Those windows are ',
+                h('strong', {}, 'unioned across all sessions'),
+                ', which is what stops four concurrent agents producing four hours of your time in one hour. Unattended execution contributes nothing.',
               ),
             ),
           ),
@@ -886,28 +842,24 @@ function methodologyBody(m: Record<string, unknown>): HTMLElement {
               h(
                 'li',
                 {},
-                'Task boundaries are inferred lexically and structurally. Two unrelated tasks in the same files may merge; one task spread across unrelated files may split.',
+                'Two unrelated tasks in the same files may merge; one task across unrelated files may split.',
               ),
               h(
                 'li',
                 {},
-                'Steering time is modelled, not measured. If you read a diff for twenty minutes without touching anything, that time is capped away.',
+                'Steering time is modelled, not measured. Twenty silent minutes reading a diff get capped away.',
               ),
               h(
                 'li',
                 {},
-                'Category priors are anchored to a handful of studies, none of which measured your repository or your tasks.',
+                'Priors come from a handful of studies, none of which measured your repository.',
               ),
               h(
                 'li',
                 {},
-                'Day-level ranges assume tasks are independent, which understates correlated uncertainty.',
+                'Day ranges assume tasks are independent, understating correlated uncertainty.',
               ),
-              h(
-                'li',
-                {},
-                'Attribution is ambiguous when you and an agent edit the same files; those tasks are discounted but not excluded.',
-              ),
+              h('li', {}, 'Attribution is ambiguous when you and an agent edit the same files.'),
               h('li', {}, 'Work done entirely outside Claude Code and Codex is invisible.'),
             ),
           ),
@@ -921,7 +873,7 @@ function methodologyBody(m: Record<string, unknown>): HTMLElement {
         'div',
         { class: 'band-head' },
         h('h2', {}, 'Empirical anchors'),
-        h('span', { class: 'note' }, 'Including the ones that argue against a large multiplier.'),
+        h('span', { class: 'note' }, 'Including those arguing against a large multiplier'),
       ),
       h(
         'div',
@@ -965,7 +917,7 @@ function methodologyBody(m: Record<string, unknown>): HTMLElement {
         'div',
         { class: 'band-head' },
         h('h2', {}, 'Category priors'),
-        h('span', { class: 'note' }, 'Median hours and spread for a typical task of each kind.'),
+        h('span', { class: 'note' }, 'Median hours and spread per task kind'),
       ),
       h(
         'table',
@@ -1013,7 +965,7 @@ function methodologyBody(m: Record<string, unknown>): HTMLElement {
             h(
               'p',
               {},
-              'You have not calibrated any estimates yet. Open a task and answer "how long would this have taken you?" — after three answers a personalised view becomes available alongside the standardised one. The two are always kept separate: your correction calibrates your model, not the shared benchmark.',
+              'Nothing calibrated yet. Open a task and answer "how long would this have taken you?" — three answers unlock a personalised view alongside the standardised one. Your corrections never touch the shared benchmark.',
             ),
           )
         : h(

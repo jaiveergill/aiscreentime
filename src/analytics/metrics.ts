@@ -2,7 +2,6 @@ import type {
   ConfidenceLevel,
   DayMetrics,
   EffortDistribution,
-  EstimateMode,
   TaskEstimate,
   TaskRecord,
   TaskStatus,
@@ -52,12 +51,7 @@ const EMPTY_STATUS_COUNTS: Record<TaskStatus, number> = {
  * because a single number invites the exact inflation this product is trying
  * to avoid.
  */
-export function computeDayMetrics(
-  db: Db,
-  day: string,
-  mode: EstimateMode,
-  settings: Settings,
-): DayMetrics {
+export function computeDayMetrics(db: Db, day: string, settings: Settings): DayMetrics {
   const from = startOfDay(day);
   const to = endOfDay(day);
 
@@ -66,7 +60,6 @@ export function computeDayMetrics(
   const estimates = loadEstimates(
     db,
     included.map((t) => t.taskId),
-    mode,
   );
 
   const grossParts: EffortDistribution[] = [];
@@ -146,7 +139,6 @@ export function computeDayMetrics(
     shapeVersion: METRICS_SHAPE_VERSION,
     dayKey: day,
     benchmarkVersion: BENCHMARK_VERSION,
-    mode,
     verifiedHours: verified,
     acceptedHours: accepted,
     grossHours: gross,
@@ -178,12 +170,12 @@ export function computeDayMetrics(
 
   db.handle
     .prepare(
-      `INSERT INTO day_metrics (day_key, benchmark_version, mode, payload, computed_at)
-       VALUES (?,?,?,?,?)
-       ON CONFLICT(day_key, benchmark_version, mode) DO UPDATE SET
+      `INSERT INTO day_metrics (day_key, benchmark_version, payload, computed_at)
+       VALUES (?,?,?,?)
+       ON CONFLICT(day_key, benchmark_version) DO UPDATE SET
          payload = excluded.payload, computed_at = excluded.computed_at`,
     )
-    .run(day, BENCHMARK_VERSION, mode, JSON.stringify(metrics), Date.now());
+    .run(day, BENCHMARK_VERSION, JSON.stringify(metrics), Date.now());
 
   return metrics;
 }
@@ -257,18 +249,14 @@ function safeArray(v: unknown): string[] {
   }
 }
 
-export function loadEstimates(
-  db: Db,
-  taskIds: readonly string[],
-  mode: EstimateMode,
-): Map<string, TaskEstimate> {
+export function loadEstimates(db: Db, taskIds: readonly string[]): Map<string, TaskEstimate> {
   const out = new Map<string, TaskEstimate>();
   if (taskIds.length === 0) return out;
   const stmt = db.handle.prepare(
-    'SELECT task_id, payload FROM estimates WHERE benchmark_version = ? AND mode = ? AND task_id = ?',
+    'SELECT task_id, payload FROM estimates WHERE benchmark_version = ? AND task_id = ?',
   );
   for (const id of taskIds) {
-    const row = stmt.get(BENCHMARK_VERSION, mode, id) as { payload: string } | undefined;
+    const row = stmt.get(BENCHMARK_VERSION, id) as { payload: string } | undefined;
     if (!row) continue;
     try {
       out.set(id, JSON.parse(row.payload) as TaskEstimate);
@@ -279,12 +267,10 @@ export function loadEstimates(
   return out;
 }
 
-export function loadDayMetrics(db: Db, day: string, mode: EstimateMode): DayMetrics | undefined {
+export function loadDayMetrics(db: Db, day: string): DayMetrics | undefined {
   const row = db.handle
-    .prepare(
-      'SELECT payload FROM day_metrics WHERE day_key = ? AND benchmark_version = ? AND mode = ?',
-    )
-    .get(day, BENCHMARK_VERSION, mode) as { payload: string } | undefined;
+    .prepare('SELECT payload FROM day_metrics WHERE day_key = ? AND benchmark_version = ?')
+    .get(day, BENCHMARK_VERSION) as { payload: string } | undefined;
   if (!row) return undefined;
   try {
     const parsed = JSON.parse(row.payload) as DayMetrics;
@@ -304,13 +290,12 @@ export function activeDays(db: Db, limit = 90): string[] {
   return rows.map((r) => r.day_key);
 }
 
-export function emptyDayMetrics(day: string, mode: EstimateMode): DayMetrics {
+export function emptyDayMetrics(day: string): DayMetrics {
   const zero = lognormal(0, 0.5);
   return {
     shapeVersion: METRICS_SHAPE_VERSION,
     dayKey: day,
     benchmarkVersion: BENCHMARK_VERSION,
-    mode,
     verifiedHours: zero,
     acceptedHours: zero,
     grossHours: zero,
@@ -345,7 +330,6 @@ export function emptyDayMetrics(day: string, mode: EstimateMode): DayMetrics {
 export function trend(
   db: Db,
   days: number,
-  mode: EstimateMode,
   settings: Settings,
 ): {
   day: string;
@@ -369,7 +353,7 @@ export function trend(
   const todayStart = startOfDay(today);
   for (let i = days - 1; i >= 0; i--) {
     const d = dayKey(todayStart - i * 24 * HOUR, settings.timezone || undefined);
-    const m = loadDayMetrics(db, d, mode) ?? emptyDayMetrics(d, mode);
+    const m = loadDayMetrics(db, d) ?? emptyDayMetrics(d);
     out.push({
       day: d,
       verifiedHours: m.verifiedHours.median,

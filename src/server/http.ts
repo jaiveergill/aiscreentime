@@ -36,8 +36,34 @@ export function createServer(ctx: ApiContext, opts: ServerOptions): http.Server 
     });
   });
 
+  /**
+   * Names this server will answer to.
+   *
+   * Binding to loopback does not stop a page the user is visiting from
+   * re-resolving its own hostname to 127.0.0.1 and then reaching this server
+   * same-origin — at which point the CSRF guard above does not help, because
+   * those are ordinary GETs with a legitimate Origin. Pinning the `Host` header
+   * to known names closes that path: an attacker's domain never matches.
+   */
+  const allowedHosts = new Set([host, 'localhost', '127.0.0.1', '::1', '[::1]']);
+
   async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-    const url = new URL(req.url ?? '/', `http://${req.headers.host ?? `${host}:${opts.port}`}`);
+    const rawHost = req.headers.host ?? `${host}:${opts.port}`;
+    // Strip the port: `host` may be bare, bracketed IPv6, or either with `:port`.
+    const hostname = rawHost.startsWith('[')
+      ? rawHost.slice(0, rawHost.indexOf(']') + 1)
+      : (rawHost.split(':')[0] ?? '');
+    if (!allowedHosts.has(hostname)) {
+      res.writeHead(403, {
+        'x-content-type-options': 'nosniff',
+        'referrer-policy': 'no-referrer',
+        'content-type': 'application/json',
+      });
+      res.end(JSON.stringify({ error: 'Host not allowed.' }));
+      return;
+    }
+
+    const url = new URL(req.url ?? '/', `http://${rawHost}`);
     const method = req.method ?? 'GET';
 
     // Never cache API responses; the numbers change under the user's feet.

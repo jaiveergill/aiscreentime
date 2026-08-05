@@ -194,7 +194,7 @@ describe('performance', () => {
       computeDerived(db, { settings: s });
 
       const t0 = Date.now();
-      const m = computeDayMetrics(db, '2026-05-01', 'conservative', s);
+      const m = computeDayMetrics(db, '2026-05-01', s);
       const ms = Date.now() - t0;
       assert.ok(ms < 5000, `day metrics took ${ms}ms`);
       assert.ok(m.taskCount >= 0);

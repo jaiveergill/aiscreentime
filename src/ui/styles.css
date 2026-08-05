@@ -811,7 +811,8 @@ button {
   margin-top: 16px;
 }
 
-.panel h3 {
+.panel h3,
+.panel > summary {
   font-family: var(--mono);
   font-size: 10.5px;
   letter-spacing: 0.16em;
@@ -819,6 +820,28 @@ button {
   color: var(--text-dim);
   margin: 0 0 12px;
   font-weight: 600;
+}
+
+.panel > summary {
+  cursor: pointer;
+  margin: 0;
+  list-style: none;
+}
+
+.panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.panel > summary::before {
+  content: '\25B8  ';
+}
+
+.panel[open] > summary {
+  margin-bottom: 12px;
+}
+
+.panel[open] > summary::before {
+  content: '\25BE  ';
 }
 
 .kv {
@@ -1265,6 +1288,10 @@ input[type='checkbox'] {
 .stack {
   display: grid;
   gap: 16px;
+  /* A grid stretched taller than its rows spreads the slack *between* them.
+     Beside a tall neighbour column, that pushed a two-panel stack apart by
+     hundreds of pixels. Stacks pack from the top. */
+  align-content: start;
 }
 
 .sr-only {

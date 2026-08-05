@@ -14,15 +14,12 @@ export function configureLogging(opts: { level?: LogLevel; dir?: string; quiet?:
   if (opts.level) minLevel = opts.level;
   if (opts.quiet !== undefined) quiet = opts.quiet;
   if (opts.dir) {
-    fs.mkdirSync(opts.dir, { recursive: true });
+    // Owner-only: log lines carry file paths and command text.
+    fs.mkdirSync(opts.dir, { recursive: true, mode: 0o700 });
     logFile = path.join(opts.dir, 'leverage.log');
     stream?.end();
-    stream = fs.createWriteStream(logFile, { flags: 'a' });
+    stream = fs.createWriteStream(logFile, { flags: 'a', mode: 0o600 });
   }
-}
-
-export function logFilePath(): string | undefined {
-  return logFile;
 }
 
 /** Structured local logs. Never leaves the machine. */
@@ -43,8 +40,3 @@ export const log = {
   warn: (msg: string, fields?: Record<string, unknown>) => emit('warn', msg, fields),
   error: (msg: string, fields?: Record<string, unknown>) => emit('error', msg, fields),
 };
-
-export function closeLogging(): void {
-  stream?.end();
-  stream = undefined;
-}

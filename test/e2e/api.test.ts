@@ -1,6 +1,6 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Server } from 'node:http';
+import { request as httpRequest, type Server } from 'node:http';
 
 import {
   createContext,
@@ -30,6 +30,23 @@ let DAY: string;
 const call = (method: string, p: string, body?: unknown) =>
   handleApi(ctx, method, new URL(`http://local${p}`), body);
 
+/** GET with an arbitrary Host header. `fetch` treats Host as forbidden. */
+function rawGet(p: string, host: string): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(
+      { host: '127.0.0.1', port, path: p, method: 'GET', headers: { host } },
+      (res) => {
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', (c: string) => (body += c));
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, body }));
+      },
+    );
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 before(async () => {
   dir = tmpDir('leverage-api-');
   // Point the collectors at empty directories. A test that reads the
@@ -47,9 +64,7 @@ before(async () => {
   installDemoData(ctx.db, at);
   const s = saveSettings(ctx.db, { onboarded: true });
   computeDerived(ctx.db, { settings: s });
-  for (const m of ['conservative', 'balanced', 'upper-range'] as const) {
-    computeDayMetrics(ctx.db, DAY, m, s);
-  }
+  computeDayMetrics(ctx.db, DAY, s);
   server = createServer(ctx, { port: 0, publicDir: dir });
   port = await listen(server, 39871);
   base = `http://127.0.0.1:${port}`;
@@ -81,7 +96,7 @@ describe('API surface', () => {
   });
 
   test('the day endpoint returns metrics plus fully-formed tasks', async () => {
-    const r = await call('GET', `/api/day/${DAY}?mode=conservative`);
+    const r = await call('GET', `/api/day/${DAY}`);
     assert.equal(r.status, 200);
     const b = r.body as { metrics: Record<string, unknown>; tasks: Record<string, unknown>[] };
     assert.ok(b.tasks.length > 0);
@@ -108,15 +123,15 @@ describe('API surface', () => {
     assert.ok((b['peak'] as number) >= 1);
   });
 
-  test('task detail exposes evidence, provenance and every estimate mode', async () => {
+  test('task detail exposes its estimate, evidence and provenance', async () => {
     const day = (await call('GET', `/api/day/${DAY}`)).body as { tasks: { taskId: string }[] };
     const id = day.tasks[0]?.taskId as string;
     const r = await call('GET', `/api/task/${id}`);
     assert.equal(r.status, 200);
     const b = r.body as Record<string, unknown>;
     assert.ok(b['task']);
-    const est = b['estimates'] as Record<string, unknown>;
-    assert.ok(est['conservative'] && est['balanced'] && est['upper-range']);
+    assert.ok(b['estimate'], 'the task carries the one estimate there is');
+    assert.equal(b['estimates'], undefined, 'and no per-mode variants');
     const events = b['events'] as { source: { file: string; line: number; parser: string } }[];
     assert.ok(events.length > 0);
     assert.ok(events[0]?.source.parser, 'every event links back to the parser that produced it');
@@ -228,10 +243,10 @@ describe('API surface', () => {
   });
 
   test('settings round-trip and scope changes recompute', async () => {
-    const r = await call('POST', '/api/settings', { mode: 'balanced' });
+    const r = await call('POST', '/api/settings', { historyDays: 45 });
     assert.equal(r.status, 200);
-    assert.equal(loadSettings(ctx.db).mode, 'balanced');
-    await call('POST', '/api/settings', { mode: 'conservative' });
+    assert.equal(loadSettings(ctx.db).historyDays, 45);
+    await call('POST', '/api/settings', { historyDays: 30 });
   });
 
   test('export contains derived data and no raw transcripts', async () => {
@@ -259,9 +274,7 @@ describe('API surface', () => {
     const s = loadSettings(ctx.db);
     const rebuilt = computeDerived(ctx.db, { settings: s });
     assert.ok(rebuilt.tasksBuilt > 0, 'and everything can be rebuilt from them');
-    for (const m of ['conservative', 'balanced', 'upper-range'] as const) {
-      computeDayMetrics(ctx.db, DAY, m, s);
-    }
+    computeDayMetrics(ctx.db, DAY, s);
   });
 });
 
@@ -318,17 +331,17 @@ describe('HTTP transport', () => {
     const res = await fetch(`${base}/api/settings`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: 'https://evil.example' },
-      body: JSON.stringify({ mode: 'upper-range' }),
+      body: JSON.stringify({ historyDays: 999 }),
     });
     assert.equal(res.status, 403);
-    assert.notEqual(loadSettings(ctx.db).mode, 'upper-range', 'and the change did not land');
+    assert.notEqual(loadSettings(ctx.db).historyDays, 999, 'and the change did not land');
   });
 
   test('allows same-origin mutations', async () => {
     const res = await fetch(`${base}/api/settings`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: `http://127.0.0.1:${port}` },
-      body: JSON.stringify({ mode: 'conservative' }),
+      body: JSON.stringify({ historyDays: 30 }),
     });
     assert.equal(res.status, 200);
   });
@@ -337,6 +350,23 @@ describe('HTTP transport', () => {
     const res = await fetch(`${base}/../../../../etc/passwd`);
     const text = await res.text();
     assert.ok(!text.includes('root:'), 'must never serve files outside the public directory');
+  });
+
+  test('rejects requests carrying a foreign Host header', async () => {
+    // Binding to loopback does not stop DNS rebinding: an attacker's page can
+    // re-resolve its own hostname to 127.0.0.1 and then read the API with
+    // ordinary same-origin GETs, which the CSRF guard above does not cover.
+    // `fetch` refuses to set Host, so this goes over a raw request.
+    const res = await rawGet('/api/export', 'evil.example');
+    assert.equal(res.status, 403);
+    assert.ok(!res.body.includes('"tasks"'), 'no data may be returned to a rebound host');
+  });
+
+  test('still accepts the loopback names it is reached by', async () => {
+    for (const host of [`127.0.0.1:${port}`, `localhost:${port}`, '127.0.0.1']) {
+      const res = await rawGet('/api/status', host);
+      assert.equal(res.status, 200, `${host} must be allowed`);
+    }
   });
 
   test('a malformed JSON body does not crash the server', async () => {

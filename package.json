@@ -20,7 +20,7 @@
     "build:server": "tsc -p tsconfig.json",
     "build:ui": "node scripts/build-ui.mjs",
     "dev": "node scripts/build-ui.mjs --watch",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.ui.json",
     "lint": "node scripts/lint.mjs",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"scripts/*.mjs\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"scripts/*.mjs\"",
