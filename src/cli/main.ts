@@ -445,7 +445,8 @@ function printDay(ctx: ReturnType<typeof createContext>, day: string, asJson: bo
   );
   const cachePct = m.tokensIn > 0 ? Math.round((m.tokensCacheRead / m.tokensIn) * 100) : 0;
   process.stdout.write(
-    `  ${fmtCount(m.tokensIn)} tokens in · ${fmtCount(m.tokensOut)} out · ${cachePct}% cached\n`,
+    `  ${fmtCount(m.tokensIn)} tokens in · ${fmtCount(m.tokensOut)}+ out · ${cachePct}% cached\n` +
+      `  ${c.dim('output is a floor — Claude Code transcripts omit thinking tokens')}\n`,
   );
   process.stdout.write(
     `  ${c.dim(`range ${roundHuman(m.verifiedHours.p10)}–${roundHuman(m.verifiedHours.p90)}h · confidence ${m.confidence} · steering ${formatDuration(m.steeringLowMs)}–${formatDuration(m.steeringHighMs)}`)}\n`,

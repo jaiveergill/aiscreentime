@@ -337,7 +337,46 @@ Two rules keep this honest:
 
 ---
 
-## 13. Versioning
+## 13. Token counts
+
+Tokens are the only figures here read straight out of a provider file, so they
+are tagged `measured` rather than `derived` or `estimated`. That tag is about
+provenance, not precision — the underlying records are messier than the label
+suggests, in three ways worth stating plainly.
+
+**One request is written many times.** Claude Code appends to its transcript
+*during* streaming, so a single API response produces between two and ten
+records sharing a `requestId`, each repeating the same cache figures with a
+rising output count; a subagent's response is written to both the parent
+transcript and the agent's own file. Codex has the same problem from a
+different direction — it writes each `token_count` event twice, a fraction of a
+second apart and byte-identical. Summing every record inflated these totals by
+almost exactly **2x** on real history. Each request is now counted once: Claude
+records are keyed on `(message id, request id)`, Codex records on the session's
+running cumulative total. On a checked window this lands within 0.25% of an
+independently computed count, and 192 of 199 Codex sessions reconcile exactly
+against their own final totals.
+
+**Input includes cache, and the providers disagree about that.** Claude reports
+`input_tokens` as the *uncached remainder only* — a cached turn shows 2 against
+20,000 actually read from cache — while Codex reports input already inclusive
+of its cached subset. The collectors normalise both to mean the same thing:
+every token the model was fed. Cache reads are shown separately because on a
+long session they are the overwhelming majority.
+
+**Output is a floor, not a total.** Claude Code's transcripts omit thinking
+tokens entirely, so real output is higher than what is shown and nothing in the
+logs can recover the difference; the upstream request for complete accounting
+was closed as not planned. Codex does include reasoning inside `output_tokens`,
+so the shortfall is Claude's alone — but a combined figure inherits it. Output
+is therefore rendered with a trailing `+` everywhere it appears.
+
+Tokens are never used as an input to estimation (§10). They describe what the
+agents consumed, not how much work was done.
+
+---
+
+## 14. Versioning
 
 Every estimate and day metric records the benchmark version it was computed
 under. Historical results are not silently rewritten when the model changes:
@@ -346,7 +385,7 @@ alongside every headline.
 
 ---
 
-## 14. Known failure modes
+## 15. Known failure modes
 
 - **Task boundaries are inferred.** Two unrelated tasks in the same files may
   merge; one task spread across unrelated files may split.
